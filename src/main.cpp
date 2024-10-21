@@ -1,12 +1,13 @@
 #include "rtc/rtc.hpp"
 #include <iostream>
-
+#include <rtc/configuration.hpp>
+#include <rtc/peerconnection.hpp>
+#include <rtc/websocket.hpp>
+#include <memory>
 
 
 int main()
 {
-    
-    
     
     rtc::WebSocket ws;
     
@@ -30,6 +31,8 @@ int main()
     rtc::Configuration config;
     config.iceServers.emplace_back("stun.l.google.com:19302");
     rtc::PeerConnection pc(config);
+    
+    //std::weak_ptr<rtc::WebSocket> wws = std::make_weak_ptr(ws);
     
     pc.onLocalDescription([](rtc::Description sdp) {
         // Send the SDP to the remote peer
@@ -78,4 +81,10 @@ int main()
     return 0;
 }
 
+
+// std::shared_ptr<rtc::PeerConnection> makeAPeerConnection(const rtc::Configuration conf)
+// {
+//     rtc::PeerConnection test;
+//     return test;
+// }
 
