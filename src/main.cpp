@@ -1,11 +1,34 @@
 #include "rtc/rtc.hpp"
+#include <iostream>
+
 
 
 int main()
 {
+    
+    
+    
+    rtc::WebSocket ws;
+    
+    ws.onOpen([]() {
+        std::cout << "WebSocket open" << std::endl;
+    });
+    
+    ws.onMessage([](std::variant<rtc::binary, rtc::string> message) {
+        if (std::holds_alternative<rtc::string>(message)) {
+            std::string msg = std::get<rtc::string>(message);
+            std::cout << "WebSocket received: " << msg << std::endl;
+            
+        }
+    });
+    
+    
+    ws.open("wss://127.0.0.1");
+    
+    
+    
     rtc::Configuration config;
     config.iceServers.emplace_back("stun.l.google.com:19302");
-    
     rtc::PeerConnection pc(config);
     
     pc.onLocalDescription([](rtc::Description sdp) {
@@ -46,11 +69,11 @@ int main()
         }
     });
     
-    // std::shared_ptr<rtc::DataChannel> dc;
-    // pc.onDataChannel([&dc](std::shared_ptr<rtc::DataChannel> incoming) {
-    //     dc = incoming;
-    //     dc->send("Hello world!");
-    // });
+    //std::shared_ptr<rtc::DataChannel> dc;
+    pc.onDataChannel([&dc](std::shared_ptr<rtc::DataChannel> incoming) {
+        dc = incoming;
+        dc->send("Hello world!");
+    });
     
     return 0;
 }
