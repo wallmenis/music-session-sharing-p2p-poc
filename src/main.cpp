@@ -32,7 +32,7 @@ int main()
     // }
     // );
     
-    ws.open("wss://127.0.0.1:8000");
+    ws.open("127.0.0.1:8000");
     
     while(!ws.isOpen());
     ws.send("test");
