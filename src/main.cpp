@@ -26,16 +26,16 @@ int main()
         }
     });
     
-    // ws.onAvailable([&signalling_server_message_availiable]()
-    // {
-    //     signalling_server_message_availiable = true;
-    // }
-    // );
+    ws.onAvailable([&ws]()
+    {
+        //ws.send();
+    }
+    );
     
     ws.open("127.0.0.1:8000");
     
-    while(!ws.isOpen());
-    ws.send("test");
+    // while(!ws.isOpen());
+    // ws.send("test");
     ws.close();
     
 //     rtc::Configuration config;
