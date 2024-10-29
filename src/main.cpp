@@ -5,11 +5,13 @@
 #include <rtc/websocket.hpp>
 #include <memory>
 #include <string>
+#include <nlohmann/json>
 
+bool ss_is_avail; //Flag for if the signalling server is availiable to send/receive;
 
 int main()
 {
-    
+    ss_is_avail = false;
     rtc::WebSocket ws;
     
     //bool signalling_server_message_availiable = false;
@@ -28,7 +30,14 @@ int main()
     
     ws.onAvailable([&ws]()
     {
-        //ws.send();
+        ss_is_avail = true;
+//         nlohmann::json ids_and_stuff =
+//         {
+//         {
+//             
+//         }
+//         };
+//         ws.send();
     }
     );
     
