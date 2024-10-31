@@ -1,11 +1,15 @@
+#include <cstdlib>
 #include <rtc/rtc.hpp>
 #include <iostream>
+#include <sstream>
 #include <rtc/configuration.hpp>
 #include <rtc/peerconnection.hpp>
 #include <rtc/websocket.hpp>
 #include <memory>
 #include <string>
-#include <nlohmann/json>
+#include <nlohmann/json.hpp>
+#include <chrono>
+
 
 bool ss_is_avail; //Flag for if the signalling server is availiable to send/receive;
 
@@ -42,6 +46,8 @@ int main()
     );
     
     ws.open("127.0.0.1:8000");
+
+
     
     // while(!ws.isOpen());
     // ws.send("test");
@@ -101,6 +107,19 @@ int main()
 //     });
     
     return 0;
+}
+
+std::string randid(int size)
+{
+    int seed = std::chrono::system_clock::now().time_since_epoch().count();
+    srand(seed);
+    std::stringstream outp;
+    const char maptonum[] = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (int i = 0; i<size; i++)
+    {
+        outp << maptonum[rand()%36];
+    }
+    return outp.str();
 }
 
 
