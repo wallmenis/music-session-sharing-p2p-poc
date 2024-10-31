@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <rtc/datachannel.hpp>
 #include <rtc/rtc.hpp>
 #include <iostream>
 #include <sstream>
@@ -10,17 +11,23 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 
+std::string randid(int size);
+std::shared_ptr<rtc::PeerConnection> createAPeerConnection(rtc::Configuration config);
+std::shared_ptr<rtc::DataChannel> createADataChannel();
 
+bool is_offerer;
 bool ss_is_avail; //Flag for if the signalling server is availiable to send/receive;
+std::string myId;
 
 int main()
 {
+    myId = randid(5);
     ss_is_avail = false;
     rtc::WebSocket ws;
     
     //bool signalling_server_message_availiable = false;
     
-    ws.onOpen([&ws]() {
+    ws.onOpen([]() {
         std::cout << "WebSocket open" << std::endl;
     });
     
@@ -32,22 +39,31 @@ int main()
         }
     });
     
-    ws.onAvailable([&ws]()
+    ws.onAvailable([]()
     {
         ss_is_avail = true;
-//         nlohmann::json ids_and_stuff =
-//         {
-//         {
-//             
-//         }
-//         };
-//         ws.send();
+        
     }
     );
     
+    std::cout << "ID = " << myId << "\n";
     ws.open("127.0.0.1:8000");
-
-
+    while(!ss_is_avail);
+    std::string inp;
+    std::cout << "Connected to signaling server with id" << myId << "\n";
+    std::cout << "Is this an offerer?[Y/N]\n";
+    std::cin >> inp;
+    if (inp.compare("Y"))
+    {
+        is_offerer = true;
+    }
+    // while(ws.isOpen())
+    // {
+    //     if(ss_is_avail)
+    //     {
+    //     }
+    // }
+    
     
     // while(!ws.isOpen());
     // ws.send("test");
@@ -123,9 +139,15 @@ std::string randid(int size)
 }
 
 
-// std::shared_ptr<rtc::PeerConnection> makeAPeerConnection(const rtc::Configuration conf)
-// {
-//     rtc::PeerConnection test;
-//     return test;
-// }
+std::shared_ptr<rtc::PeerConnection> createPeerConnection(rtc::Configuration config)
+{
+    
+    auto pc = std::make_shared<rtc::PeerConnection>(config);
+    return pc;
+}
+
+std::shared_ptr<rtc::DataChannel> createADataChannel()
+{
+    return NULL;
+}
 
