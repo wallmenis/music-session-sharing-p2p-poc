@@ -24,6 +24,7 @@ int main()
     myId = randid(5);
     ss_is_avail = false;
     rtc::WebSocket ws;
+    rtc::Configuration config;
     
     //bool signalling_server_message_availiable = false;
     
@@ -56,6 +57,24 @@ int main()
     if (inp.compare("Y"))
     {
         is_offerer = true;
+    }
+    if (is_offerer)
+    {
+        std::shared_ptr<rtc::PeerConnection> pc = createAPeerConnection(config);
+        pc->onLocalDescription([&ws](rtc::Description sdp){
+            nlohmann::json message =
+                {{"id", myId},
+                {"type", sdp.typeString()},
+                {"description", std::string(sdp)}
+            };
+        if(ss_is_avail)
+        {
+            ss_is_avail = false;
+            ws.send(message.dump());
+        }
+        
+        });
+        
     }
     // while(ws.isOpen())
     // {
@@ -139,7 +158,7 @@ std::string randid(int size)
 }
 
 
-std::shared_ptr<rtc::PeerConnection> createPeerConnection(rtc::Configuration config)
+std::shared_ptr<rtc::PeerConnection> createAPeerConnection(rtc::Configuration config)
 {
     
     auto pc = std::make_shared<rtc::PeerConnection>(config);
