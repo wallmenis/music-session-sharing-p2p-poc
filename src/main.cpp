@@ -10,6 +10,7 @@
 #include <string>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <future>
 
 std::string randid(int size);
 std::shared_ptr<rtc::PeerConnection> createAPeerConnection(rtc::Configuration config);
@@ -24,13 +25,15 @@ int main()
     myId = randid(5);
     ss_is_avail = false;
     rtc::WebSocket ws;
+    std::promise<void> websocket_promise;
     rtc::Configuration config;
     
     //bool signalling_server_message_availiable = false;
     
-    ws.onOpen([]() {
+    ws.onOpen([&websocket_promise]() {
         std::cout << "WebSocket open" << std::endl;
-    });
+        websocket_promise.set_value();
+    }); 
     
     ws.onMessage([](std::variant<rtc::binary, rtc::string> message) {
         if (std::holds_alternative<rtc::string>(message)) {
@@ -40,16 +43,17 @@ int main()
         }
     });
     
-    ws.onAvailable([]()
-    {
-        ss_is_avail = true;
-        
-    }
-    );
+//     ws.onAvailable([]()
+//     {
+//         
+//         
+//     }
+//     );
     
     std::cout << "ID = " << myId << "\n";
     ws.open("127.0.0.1:8000");
-    while(!ss_is_avail);
+    config.iceServers.emplace_back("127.0.0.1:3479");
+    websocket_promise.get_future().get();
     std::string inp;
     std::cout << "Connected to signaling server with id" << myId << "\n";
     std::cout << "Is this an offerer?[Y/N]\n";
@@ -58,23 +62,32 @@ int main()
     {
         is_offerer = true;
     }
-    if (is_offerer)
-    {
-        std::shared_ptr<rtc::PeerConnection> pc = createAPeerConnection(config);
-        pc->onLocalDescription([&ws](rtc::Description sdp){
-            nlohmann::json message =
-                {{"id", myId},
-                {"type", sdp.typeString()},
-                {"description", std::string(sdp)}
-            };
+    else {
+        is_offerer = false;
+        std::cout << "Please enter the offerer's ID\n";
+        std::cin >> inp;
+    }
+    std::shared_ptr<rtc::PeerConnection> pc = createAPeerConnection(config);
+    pc->onLocalDescription([&ws](rtc::Description sdp){
+        nlohmann::json message =
+        {{"id", myId},
+        {"type", sdp.typeString()},
+        {"description", std::string(sdp)}
+        };
         if(ss_is_avail)
         {
             ss_is_avail = false;
             ws.send(message.dump());
+            ss_is_avail = true;
         }
         
-        });
+    });
+    if (is_offerer)
+    {
         
+    }
+    else {
+
     }
     // while(ws.isOpen())
     // {
