@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <nlohmann/json_fwd.hpp>
 #include <rtc/datachannel.hpp>
 #include <rtc/rtc.hpp>
 #include <iostream>
@@ -13,8 +14,6 @@
 #include <future>
 
 std::string randid(int size);
-std::shared_ptr<rtc::PeerConnection> createAPeerConnection(rtc::Configuration config);
-std::shared_ptr<rtc::DataChannel> createADataChannel();
 
 bool is_offerer;
 bool ss_is_avail; //Flag for if the signalling server is availiable to send/receive;
@@ -40,10 +39,23 @@ int main()
     }); 
     
     ws->onMessage([&descision_if_offerer_future](std::variant<rtc::binary, rtc::string> message) {
+        std::string msg;
+        bool is_safe_to_read = false;
+        std::cout << "WebSocket received: ";
         if (std::holds_alternative<rtc::string>(message)) {
-            std::string msg = std::get<rtc::string>(message);
-            std::cout << "WebSocket received: " << msg << std::endl;
+            is_safe_to_read = true;
+            msg = std::get<rtc::string>(message);
+            std::cout << msg << std::endl;
             descision_if_offerer_future.get();
+        }
+        else {
+            std::cout << "Binary data received, ignoring";
+            is_safe_to_read = false;
+        }
+        if(is_safe_to_read)
+        {
+            nlohmann::json msg_json = nlohmann::json::parse(msg);
+            //msg_json
         }
     });
     
@@ -192,18 +204,5 @@ std::string randid(int size)
         outp << maptonum[rand()%36];
     }
     return outp.str();
-}
-
-
-std::shared_ptr<rtc::PeerConnection> createAPeerConnection(rtc::Configuration config)
-{
-    
-    auto pc = std::make_shared<rtc::PeerConnection>(config);
-    return pc;
-}
-
-std::shared_ptr<rtc::DataChannel> createADataChannel()
-{
-    return NULL;
 }
 
