@@ -26,7 +26,9 @@ int main()
     ss_is_avail = false;
     std::shared_ptr<rtc::WebSocket> ws;
     std::promise<void> websocket_promise;
+    std::promise<void> descision_if_offerer;
     auto websocket_promise_future = websocket_promise.get_future();
+    auto descision_if_offerer_future = descision_if_offerer.get_future();
     rtc::Configuration config;
     
     ws = std::make_shared<rtc::WebSocket>();
@@ -37,11 +39,11 @@ int main()
         websocket_promise.set_value();
     }); 
     
-    ws->onMessage([](std::variant<rtc::binary, rtc::string> message) {
+    ws->onMessage([&descision_if_offerer_future](std::variant<rtc::binary, rtc::string> message) {
         if (std::holds_alternative<rtc::string>(message)) {
             std::string msg = std::get<rtc::string>(message);
             std::cout << "WebSocket received: " << msg << std::endl;
-            
+            descision_if_offerer_future.get();
         }
     });
     
@@ -68,13 +70,14 @@ int main()
     if (inp.c_str()[0] == 'Y')
     {
         is_offerer = true;
+        descision_if_offerer.set_value();
     }
     else {
         is_offerer = false;
         std::cout << "Please enter the offerer's ID\n";
         std::cin >> inp;
     }
-    std::shared_ptr<rtc::PeerConnection> pc = createAPeerConnection(config);
+    std::shared_ptr<rtc::PeerConnection> pc = std::make_shared<rtc::PeerConnection>(config);
     pc->onLocalDescription([&ws](rtc::Description sdp){
         nlohmann::json message =
         {{"id", myId},
