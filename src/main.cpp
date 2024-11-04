@@ -24,18 +24,20 @@ int main()
 {
     myId = randid(5);
     ss_is_avail = false;
-    rtc::WebSocket ws;
+    std::shared_ptr<rtc::WebSocket> ws;
     std::promise<void> websocket_promise;
+    auto websocket_promise_future = websocket_promise.get_future();
     rtc::Configuration config;
     
+    ws = std::make_shared<rtc::WebSocket>();
     //bool signalling_server_message_availiable = false;
     
-    ws.onOpen([&websocket_promise]() {
+    ws->onOpen([&websocket_promise]() {
         std::cout << "WebSocket open" << std::endl;
         websocket_promise.set_value();
     }); 
     
-    ws.onMessage([](std::variant<rtc::binary, rtc::string> message) {
+    ws->onMessage([](std::variant<rtc::binary, rtc::string> message) {
         if (std::holds_alternative<rtc::string>(message)) {
             std::string msg = std::get<rtc::string>(message);
             std::cout << "WebSocket received: " << msg << std::endl;
@@ -51,14 +53,19 @@ int main()
 //     );
     
     std::cout << "ID = " << myId << "\n";
-    ws.open("127.0.0.1:8000");
+    std::stringstream finalurl;
+    finalurl << "127.0.0.1:8000/" << myId;
+    //std::cout << finalurl.str();
+    ws->open(finalurl.str());
+    websocket_promise_future.get();
+    ss_is_avail = true;
+    std::cout << "Connected to signaling server with id " << myId << "\n";
     config.iceServers.emplace_back("127.0.0.1:3479");
-    websocket_promise.get_future().get();
     std::string inp;
-    std::cout << "Connected to signaling server with id" << myId << "\n";
+    
     std::cout << "Is this an offerer?[Y/N]\n";
     std::cin >> inp;
-    if (inp.compare("Y"))
+    if (inp.c_str()[0] == 'Y')
     {
         is_offerer = true;
     }
@@ -77,7 +84,21 @@ int main()
         if(ss_is_avail)
         {
             ss_is_avail = false;
-            ws.send(message.dump());
+            ws->send(message.dump());
+            ss_is_avail = true;
+        }
+    });
+    pc->onLocalCandidate([&ws](rtc::Candidate candidate){
+        nlohmann::json message =
+        {{"id", myId},
+        {"type", "candidate"},
+        {"candidate", std::string(candidate)},
+        {"mid", candidate.mid()}
+        };
+        if(ss_is_avail)
+        {
+            ss_is_avail = false;
+            ws->send(message.dump());
             ss_is_avail = true;
         }
         
@@ -99,7 +120,7 @@ int main()
     
     // while(!ws.isOpen());
     // ws.send("test");
-    ws.close();
+    ws->close();
     
 //     rtc::Configuration config;
 //     config.iceServers.emplace_back("stun.l.google.com:19302");
