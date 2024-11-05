@@ -12,23 +12,42 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <future>
+#include <vector>
+
+class MusicSession{
+public:
+    MusicSession()
+    {
+        
+    }
+    //ok i have tried to make this as much different as the client... I just can't... this is a very good idea from the example client...
+    //don't know if i should change the license to mpl for compatibility... I really want to keep gpl for kde but i am not sure...
+    //paul if you see this... can you please... let me have it as gpl... i really need that.
+    std::unordered_map<std::string, std::shared_ptr<rtc::PeerConnection>> pcons;
+    std::unordered_map<std::string, std::shared_ptr<rtc::DataChannel>> dcons;
+};
+MusicSession mu;
 
 std::string randid(int size);
-
+std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,std::weak_ptr<rtc::WebSocket> wws, std::string id);
 bool is_offerer;
 bool ss_is_avail; //Flag for if the signalling server is availiable to send/receive;
 std::string myId;
 
-int main()
+
+int main() try
 {
+    rtc::InitLogger(rtc::LogLevel::Info);
     myId = randid(5);
     ss_is_avail = false;
     std::shared_ptr<rtc::WebSocket> ws;
+    std::weak_ptr<rtc::WebSocket> wws = ws;
     std::promise<void> websocket_promise;
     std::promise<void> descision_if_offerer;
     auto websocket_promise_future = websocket_promise.get_future();
     auto descision_if_offerer_future = descision_if_offerer.get_future();
     rtc::Configuration config;
+    
     
     ws = std::make_shared<rtc::WebSocket>();
     //bool signalling_server_message_availiable = false;
@@ -38,7 +57,7 @@ int main()
         websocket_promise.set_value();
     }); 
     
-    ws->onMessage([&descision_if_offerer_future](std::variant<rtc::binary, rtc::string> message) {
+    ws->onMessage([&descision_if_offerer_future, wws, &config](std::variant<rtc::binary, rtc::string> message) {
         std::string msg;
         bool is_safe_to_read = false;
         std::cout << "WebSocket received: ";
@@ -55,7 +74,36 @@ int main()
         if(is_safe_to_read)
         {
             nlohmann::json msg_json = nlohmann::json::parse(msg);
-            //msg_json
+            auto it = msg_json.find("id");
+            if (it == msg_json.end())
+                return;
+            
+            auto id = it->get<std::string>();
+            
+            it = msg_json.find("type");
+            if (it == msg_json.end())
+                return;
+            
+            auto type = it->get<std::string>();
+            
+            std::shared_ptr<rtc::PeerConnection> pc;
+            if (auto jt = mu.pcons.find(id); jt != mu.pcons.end()) {
+                pc = jt->second;
+            } else if (type == "offer") {
+                std::cout << "Answering to " + id << std::endl;
+                pc = createPeerConnection(config, wws, id);
+            } else {
+                return;
+            }
+            
+            if (type == "offer" || type == "answer") {
+                auto sdp = msg_json["description"].get<std::string>();
+                pc->setRemoteDescription(rtc::Description(sdp, type));
+            } else if (type == "candidate") {
+                auto sdp = msg_json["candidate"].get<std::string>();
+                auto mid = msg_json["mid"].get<std::string>();
+                pc->addRemoteCandidate(rtc::Candidate(sdp, mid));
+            }
         }
     });
     
@@ -77,8 +125,9 @@ int main()
     config.iceServers.emplace_back("127.0.0.1:3479");
     std::string inp;
     
-    std::cout << "Is this an offerer?[Y/N]\n";
-    std::cin >> inp;
+    //std::cout << "Is this an offerer?[Y/N]\n";
+    //std::cin >> inp;
+    descision_if_offerer.set_value();
     if (inp.c_str()[0] == 'Y')
     {
         is_offerer = true;
@@ -89,109 +138,82 @@ int main()
         std::cout << "Please enter the offerer's ID\n";
         std::cin >> inp;
     }
-    std::shared_ptr<rtc::PeerConnection> pc = std::make_shared<rtc::PeerConnection>(config);
-    pc->onLocalDescription([&ws](rtc::Description sdp){
-        nlohmann::json message =
-        {{"id", myId},
-        {"type", sdp.typeString()},
-        {"description", std::string(sdp)}
-        };
-        if(ss_is_avail)
-        {
-            ss_is_avail = false;
-            ws->send(message.dump());
-            ss_is_avail = true;
-        }
-    });
-    pc->onLocalCandidate([&ws](rtc::Candidate candidate){
-        nlohmann::json message =
-        {{"id", myId},
-        {"type", "candidate"},
-        {"candidate", std::string(candidate)},
-        {"mid", candidate.mid()}
-        };
-        if(ss_is_avail)
-        {
-            ss_is_avail = false;
-            ws->send(message.dump());
-            ss_is_avail = true;
-        }
-        
-    });
-    if (is_offerer)
+    std::shared_ptr<rtc::PeerConnection> pc = createPeerConnection(config,wws,myId);
+    
+    while(true)
     {
-        
+        std::cout << "Please enter the offerer's ID\n";
+        std::cin >> inp;
     }
-    else {
-
-    }
-    // while(ws.isOpen())
-    // {
-    //     if(ss_is_avail)
-    //     {
-    //     }
-    // }
-    
-    
-    // while(!ws.isOpen());
-    // ws.send("test");
     ws->close();
     
-//     rtc::Configuration config;
-//     config.iceServers.emplace_back("stun.l.google.com:19302");
-//     rtc::PeerConnection pc(config);
-//     
-//     //auto weak_ws = std::make_weak<rtc::WebSocket> (ws);
-//     
-//     pc.onLocalDescription([&ws](rtc::Description sdp) {
-//         // Send the SDP to the remote peer
-//         ws.send(std::string(sdp));
-//         //MY_SEND_DESCRIPTION_TO_REMOTE(std::string(sdp));
-//     });
-//     
-//     pc.onLocalCandidate([&ws](rtc::Candidate candidate) {
-//         // Send the candidate to the remote peer
-//         ws.send(candidate.candidate());
-//         //candidate.mid()
-//         //MY_SEND_CANDIDATE_TO_REMOTE(candidate.candidate(), candidate.mid());
-//     });
-    
-    // MY_ON_RECV_DESCRIPTION_FROM_REMOTE([&pc](std::string sdp) {
-    //     pc.setRemoteDescription(rtc::Description(sdp));
-    // });
-    
-    // MY_ON_RECV_CANDIDATE_FROM_REMOTE([&pc](std::string candidate, std::string mid) {
-    //     pc.addRemoteCandidate(rtc::Candidate(candidate, mid));
-    // });
-    
-//     pc.onStateChange([](rtc::PeerConnection::State state) {
-//         std::cout << "State: " << state << std::endl;
-//     });
-//     
-//     pc.onGatheringStateChange([](rtc::PeerConnection::GatheringState state) {
-//         std::cout << "Gathering state: " << state << std::endl;
-//     });
-//     
-//     auto dc = pc.createDataChannel("test");
-//     
-//     dc->onOpen([]() {
-//         std::cout << "Open" << std::endl;
-//     });
-//     
-//     dc->onMessage([](std::variant<rtc::binary, rtc::string> message) {
-//         if (std::holds_alternative<rtc::string>(message)) {
-//             std::cout << "Received: " << get<rtc::string>(message) << std::endl;
-//         }
-//     });
-//     
-//     //std::shared_ptr<rtc::DataChannel> dc;
-//     pc.onDataChannel([&dc](std::shared_ptr<rtc::DataChannel> incoming) {
-//         dc = incoming;
-//         dc->send("Hello world!");
-//     });
-    
     return 0;
-}
+} catch(const std::exception &e) {
+    std::cout << e.what() << "\n";
+    mu.dcons.clear();
+    mu.pcons.clear();
+};
+
+// Create and setup a PeerConnection
+std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config, std::weak_ptr<rtc::WebSocket> wws, std::string id) {
+    auto pc = std::make_shared<rtc::PeerConnection>(config);
+    
+    pc->onStateChange(
+        [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
+    
+    pc->onGatheringStateChange([](rtc::PeerConnection::GatheringState state) {
+        std::cout << "Gathering State: " << state << std::endl;
+    });
+    
+    pc->onLocalDescription([wws, id](rtc::Description description) {
+        nlohmann::json message = {{"id", id},
+        {"type", description.typeString()},
+                           {"description", std::string(description)}};
+                           
+                           if (auto ws = wws.lock())
+                               ws->send(message.dump());
+    });
+    
+    pc->onLocalCandidate([wws, id](rtc::Candidate candidate) {
+        nlohmann::json message = {{"id", id},
+        {"type", "candidate"},
+        {"candidate", std::string(candidate)},
+                         {"mid", candidate.mid()}};
+                         
+                         if (auto ws = wws.lock())
+                             ws->send(message.dump());
+    });
+    
+    pc->onDataChannel([id](std::shared_ptr<rtc::DataChannel> dc) {
+        std::cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""
+        << std::endl;
+        
+        std::weak_ptr<rtc::DataChannel> wdc;
+        wdc = dc;
+        
+        dc->onOpen([wdc]() {
+            if (auto dc = wdc.lock())
+                dc->send("Hello from " + myId);
+        });
+        
+        dc->onClosed([id]() { std::cout << "DataChannel from " << id << " closed" << std::endl; });
+        
+        dc->onMessage([id](auto data) {
+            // data holds either std::string or rtc::binary
+            if (std::holds_alternative<std::string>(data))
+                std::cout << "Message from " << id << " received: " << std::get<std::string>(data)
+                << std::endl;
+            else
+                std::cout << "Binary message from " << id
+                << " received, size=" << std::get<rtc::binary>(data).size() << std::endl;
+        });
+        
+        mu.dcons.emplace(id, dc);
+    });
+    
+    mu.pcons.emplace(id, pc);
+    return pc;
+                                                     };
 
 std::string randid(int size)
 {
