@@ -26,7 +26,8 @@ class MusicSession{
         std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,std::weak_ptr<rtc::WebSocket> wws, std::string id);
         std::string randid(int size);
     public:
-        MusicSession(nlohmann::json connectionInfo);
+        //MusicSession(nlohmann::json connectionInfo);
+        MusicSession();
         void addSong(nlohmann::json songInfo, int playlistPoint);
         void removeSong(int playlistPoint);
         int sendUpdate();

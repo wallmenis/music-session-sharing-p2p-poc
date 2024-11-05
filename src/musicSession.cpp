@@ -1,14 +1,15 @@
 #include "musicSession.h"
 #include <rtc/datachannel.hpp>
 
-MusicSession::MusicSession(nlohmann::json connectionInfo)
+//MusicSession::MusicSession(nlohmann::json connectionInfo)
+MusicSession::MusicSession()
 {
-    auto tmp = connectionInfo.find("ice");
-    auto iceServer = tmp->get<std::string>();
-    tmp = connectionInfo.find("signaling");
-    auto signalingServer = tmp->get<std::string>();
-    tmp = connectionInfo.find("enabledTURN");
-    auto is_turn = tmp->get<std::string>();
+    // auto tmp = connectionInfo.find("ice");
+    // auto iceServer = tmp->get<std::string>();
+    // tmp = connectionInfo.find("signaling");
+    // auto signalingServer = tmp->get<std::string>();
+    // tmp = connectionInfo.find("enabledTURN");
+    // auto is_turn = tmp->get<std::string>();
     try {
         
         rtc::InitLogger(rtc::LogLevel::Info);
@@ -39,7 +40,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         ws->onClosed([]() { std::cout << "WebSocket closed" << std::endl; });
         
         
-        ws->onMessage([&config, wws, this](auto data) {
+        ws->onMessage([config, wws, this](auto data) {
             // data holds either std::string or rtc::binary
             if (!std::holds_alternative<std::string>(data))
                 return;
@@ -59,11 +60,11 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
             auto type = it->get<std::string>();
             
             std::shared_ptr<rtc::PeerConnection> pc;
-            if (auto jt = this->peerConnectionMap.find(id); jt != this->peerConnectionMap.end()) {
+            if (auto jt = peerConnectionMap.find(id); jt != peerConnectionMap.end()) {
                 pc = jt->second;
             } else if (type == "offer") {
                 std::cout << "Answering to " + id << std::endl;
-                pc = this->createPeerConnection(config, wws, id);
+                pc = createPeerConnection(config, wws, id);
             } else {
                 return;
             }
@@ -146,6 +147,63 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         peerConnectionMap.clear();
     }
 }
+
+std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rtc::Configuration &config, std::weak_ptr<rtc::WebSocket> wws, std::string id) {
+    auto pc = std::make_shared<rtc::PeerConnection>(config);
+    
+    pc->onStateChange(
+        [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
+    
+    pc->onGatheringStateChange([](rtc::PeerConnection::GatheringState state) {
+        std::cout << "Gathering State: " << state << std::endl;
+    });
+    
+    pc->onLocalDescription([wws, id](rtc::Description description) {
+        nlohmann::json message = {{"id", id},
+        {"type", description.typeString()},
+                           {"description", std::string(description)}};
+                           
+                           if (auto ws = wws.lock())
+                               ws->send(message.dump());
+    });
+    
+    pc->onLocalCandidate([wws, id](rtc::Candidate candidate) {
+        nlohmann::json message = {{"id", id},
+        {"type", "candidate"},
+        {"candidate", std::string(candidate)},
+                         {"mid", candidate.mid()}};
+                         
+                         if (auto ws = wws.lock())
+                             ws->send(message.dump());
+    });
+    
+    pc->onDataChannel([id,this](std::shared_ptr<rtc::DataChannel> dc) {
+        std::cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""
+        << std::endl;
+        std::weak_ptr<rtc::DataChannel> wdc = dc;
+        dc->onOpen([wdc, this]() {
+            if (auto dc = wdc.lock())
+                dc->send("Hello from " + localId);
+        });
+        
+        dc->onClosed([id]() { std::cout << "DataChannel from " << id << " closed" << std::endl; });
+        
+        dc->onMessage([id](auto data) {
+            // data holds either std::string or rtc::binary
+            if (std::holds_alternative<std::string>(data))
+                std::cout << "Message from " << id << " received: " << std::get<std::string>(data)
+                << std::endl;
+            else
+                std::cout << "Binary message from " << id
+                << " received, size=" << std::get<rtc::binary>(data).size() << std::endl;
+        });
+        
+        dataChannelMap.emplace(id, dc);
+    });
+    
+    peerConnectionMap.emplace(id, pc);
+    return pc;
+                                                     };
 
 std::string MusicSession::randid(int size)
 {
