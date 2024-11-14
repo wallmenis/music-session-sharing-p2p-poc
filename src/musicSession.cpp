@@ -14,15 +14,20 @@
  */
 
 #include "musicSession.h"
-#include <rtc/datachannel.hpp>
 
-//MusicSession::MusicSession(nlohmann::json connectionInfo)
-MusicSession::MusicSession()
+MusicSession::MusicSession(nlohmann::json connectionInfo)
+//MusicSession::MusicSession()
 {
-    // auto tmp = connectionInfo.find("ice");
-    // auto iceServer = tmp->get<std::string>();
-    // tmp = connectionInfo.find("signaling");
-    // auto signalingServer = tmp->get<std::string>();
+    auto tmp = connectionInfo.find("ice_server");
+    auto iceServer = tmp->get<std::string>();
+    tmp = connectionInfo.find("signaling_server");
+    auto signalingServer = tmp->get<std::string>();
+    sessionInfo = 
+    {
+        {"playState", MusicSession::playState::PAUSED},
+        {"timeStamp", 0.0},
+        {"playlistPos", 0}
+    };
     // tmp = connectionInfo.find("enabledTURN");
     // auto is_turn = tmp->get<std::string>();
     try {
