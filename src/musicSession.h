@@ -26,6 +26,7 @@ class MusicSession{
         std::unordered_map<std::string, std::shared_ptr<rtc::DataChannel>> dataChannelMap;
         std::vector<nlohmann::json> playList;
         std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,std::weak_ptr<rtc::WebSocket> wws, std::string id);
+        void cleanConnections();
         std::string randid(int size);
     public:
         MusicSession(nlohmann::json connectionInfo);
@@ -35,6 +36,7 @@ class MusicSession{
         int sendUpdate();
         void setTimestamp();
         int getUpdate();
+        void endSession();
         nlohmann::json getSessionInfo();
         nlohmann::json getSongInfo();
         std::vector<nlohmann::json> getPlaylist();
@@ -44,4 +46,5 @@ class MusicSession{
             NEXT,
             PREVIOUS
         };
+        ~MusicSession();
 };

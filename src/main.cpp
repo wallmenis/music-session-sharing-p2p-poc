@@ -14,7 +14,7 @@ int main()
     //     {"timeStamp", "aaaaaa"},
     //     {"playlistPos", 0}
     // };
-    // std::cout << sizeof(tst.dump()) << std::endl;
+    std::cout << configs.dump() << std::endl;
     std::string tmp;
     std::stringstream json_string;
     std::ifstream file("config.json");

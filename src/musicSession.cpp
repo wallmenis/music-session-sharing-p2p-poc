@@ -100,8 +100,8 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         });
         
         std::stringstream finalurl;
-        finalurl << "127.0.0.1:8000/" << localId;
-        config.iceServers.emplace_back("127.0.0.1:3479");
+        finalurl << signalingServer << "/" << localId;
+        config.iceServers.emplace_back(iceServer);
         const std::string url = finalurl.str();
         std::cout << "WebSocket URL is " << url << std::endl;
         ws->open(url);
@@ -141,7 +141,10 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
                 }
             });
             
-            dc->onClosed([id]() { std::cout << "DataChannel from " << id << " closed" << std::endl; });
+            dc->onClosed([id, this]() {
+                std::cout << "DataChannel from " << id << " closed" << std::endl;
+                dataChannelMap.erase(id);
+            });
             
             dc->onMessage([id, wdc](auto data) {
                 // data holds either std::string or rtc::binary
@@ -156,16 +159,39 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
             dataChannelMap.emplace(id, dc);
         }
         
-        std::cout << "Cleaning up..." << std::endl;
-        
-        dataChannelMap.clear();
-        peerConnectionMap.clear();
+//         std::cout << "Cleaning up..." << std::endl;
+//         
+//         dataChannelMap.clear();
+//         peerConnectionMap.clear();
         
     } catch (const std::exception &e) {
         std::cout << "Error: " << e.what() << std::endl;
-        dataChannelMap.clear();
-        peerConnectionMap.clear();
+        cleanConnections();
     }
+}
+
+MusicSession::~MusicSession()
+{
+    endSession();
+}
+
+void MusicSession::endSession()
+{
+    if(ws.unique())
+    {
+        if(ws->isOpen())
+        {
+            ws->close();
+        }
+    }
+    cleanConnections();
+}
+
+void MusicSession::cleanConnections()
+{
+    std::cout << "Cleaning up..." << std::endl;
+    dataChannelMap.clear();
+    peerConnectionMap.clear();
 }
 
 std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rtc::Configuration &config, std::weak_ptr<rtc::WebSocket> wws, std::string id) {
