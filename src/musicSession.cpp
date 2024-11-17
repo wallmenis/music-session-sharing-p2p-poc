@@ -14,6 +14,8 @@
  */
 
 #include "musicSession.h"
+#include <iostream>
+#include <nlohmann/json_fwd.hpp>
 
 MusicSession::MusicSession(nlohmann::json connectionInfo)
 //MusicSession::MusicSession()
@@ -34,7 +36,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         
         rtc::InitLogger(rtc::LogLevel::Info);
         
-        rtc::Configuration config;
+        //rtc::Configuration config;
         
         
         
@@ -60,7 +62,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         ws->onClosed([]() { std::cout << "WebSocket closed" << std::endl; });
         
         
-        ws->onMessage([config, wws, this](auto data) {
+        ws->onMessage([wws, this](auto data) {
             // data holds either std::string or rtc::binary
             if (!std::holds_alternative<std::string>(data))
                 return;
@@ -84,7 +86,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
                 pc = jt->second;
             } else if (type == "offer") {
                 std::cout << "Answering to " + id << std::endl;
-                pc = createPeerConnection(config, wws, id);
+                pc = createPeerConnection(conf, wws, id);
             } else {
                 return;
             }
@@ -101,7 +103,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         
         std::stringstream finalurl;
         finalurl << signalingServer << "/" << localId;
-        config.iceServers.emplace_back(iceServer);
+        conf.iceServers.emplace_back(iceServer);
         const std::string url = finalurl.str();
         std::cout << "WebSocket URL is " << url << std::endl;
         ws->open(url);
@@ -109,7 +111,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         std::cout << "Waiting for signaling to be connected..." << std::endl;
         wsFuture.get();
         
-        while (true) {
+        /*while (true) {
             std::string id;
             std::cout << "Enter a remote ID to send an offer:" << std::endl;
             std::cin >> id;
@@ -157,7 +159,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
             });
             
             dataChannelMap.emplace(id, dc);
-        }
+        }*/
         
 //         std::cout << "Cleaning up..." << std::endl;
 //         
@@ -193,6 +195,73 @@ void MusicSession::cleanConnections()
     dataChannelMap.clear();
     peerConnectionMap.clear();
 }
+
+std::string MusicSession::getCode()
+{
+    return localId;
+}
+
+int MusicSession::makeConnection(std::string code)
+{
+    
+    if (code.empty())
+    {
+        std::cerr << "Empty Id" << std::endl;
+        return -1;
+    }
+        
+    
+    if (code == localId) {
+        std::cerr << "Invalid code (This is the local ID)" << std::endl;
+        return -2;
+    }
+    
+    std::cout << "Offering to " + code<< std::endl;
+    auto pc = createPeerConnection(conf, ws, code);
+    
+    // We are the offerer, so create a data channel to initiate the process
+    const std::string label = "test";
+    std::cout << "Creating DataChannel with label \"" << label << "\"" << std::endl;
+    auto dc = pc->createDataChannel(label);
+    
+    std::weak_ptr<rtc::DataChannel> wdc = dc;
+    
+    dc->onOpen([code, wdc, this]() {
+        std::cout << "DataChannel from " << code << " open" << std::endl;
+        if (auto dc = wdc.lock())
+        {
+            //remember to send the playlist here...
+            dc->send("Hello from " + localId);
+        }
+    });
+    
+    dc->onClosed([code, this]() {
+        std::cout << "DataChannel from " << code << " closed" << std::endl;
+    });
+    
+    dc->onMessage([code, wdc](auto data) {
+        // data holds either std::string or rtc::binary
+        if (std::holds_alternative<std::string>(data))
+        {
+            std::cout << "Message from " << code << " received: " << std::get<std::string>(data) << std::endl;
+            nlohmann::json message = nlohmann::json::parse(std::get<std::string>(data));
+            
+            
+        }
+        else
+        {
+            std::cout << "Binary message from " << code << " received, size=" << std::get<rtc::binary>(data).size() << "Ignoring.." << std::endl;
+            
+        }
+    });
+    
+    dataChannelMap.emplace(code, dc);
+    
+    return 0;
+}
+
+
+
 
 std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rtc::Configuration &config, std::weak_ptr<rtc::WebSocket> wws, std::string id) {
     auto pc = std::make_shared<rtc::PeerConnection>(config);

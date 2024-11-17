@@ -33,6 +33,8 @@ class MusicSession{
         //MusicSession();
         void addSong(nlohmann::json songInfo, int playlistPoint);
         void removeSong(int playlistPoint);
+        std::string getCode();
+        int makeConnection(std::string code);
         int sendUpdate();
         void setTimestamp();
         int getUpdate();
