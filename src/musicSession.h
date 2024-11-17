@@ -28,6 +28,11 @@ class MusicSession{
         std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,std::weak_ptr<rtc::WebSocket> wws, std::string id);
         void cleanConnections();
         std::string randid(int size);
+        
+        int interperateIncomming(std::string inp);
+        int greetPeer(std::shared_ptr<rtc::DataChannel> dc);
+        int greetPeer(std::weak_ptr<rtc::DataChannel> dc);
+        int getPlaylistSum();
     public:
         MusicSession(nlohmann::json connectionInfo);
         //MusicSession();
