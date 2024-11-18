@@ -29,7 +29,8 @@ class MusicSession{
         void cleanConnections();
         std::string randid(int size);
         
-        int interperateIncomming(std::string inp);
+        int interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc);
+        int interperateIncomming(std::string inp, std::string id, std::weak_ptr<rtc::DataChannel> wdc);
         int greetPeer(std::shared_ptr<rtc::DataChannel> dc);
         int greetPeer(std::weak_ptr<rtc::DataChannel> dc);
         int getPlaylistSum();

@@ -240,13 +240,15 @@ int MusicSession::makeConnection(std::string code)
         std::cout << "DataChannel from " << code << " closed" << std::endl;
     });
     
-    dc->onMessage([code, wdc](auto data) {
+    dc->onMessage([code, wdc, this](auto data) {
         // data holds either std::string or rtc::binary
         if (std::holds_alternative<std::string>(data))
         {
             std::cout << "Message from " << code << " received: " << std::get<std::string>(data) << std::endl;
-            nlohmann::json message = nlohmann::json::parse(std::get<std::string>(data));
-            
+            if(interperateIncomming(std::get<std::string>(data),code))
+            {
+                std::cerr << "failed to interperate message\n";
+            }
             
         }
         else
@@ -306,12 +308,12 @@ std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rt
         
         dc->onClosed([id]() { std::cout << "DataChannel from " << id << " closed" << std::endl; });
         
-        dc->onMessage([id, this](auto data) {
+        dc->onMessage([id,wdc, this](auto data) {
             // data holds either std::string or rtc::binary
             if (std::holds_alternative<std::string>(data))
             {
                 std::cout << "Message from " << id << " received: " << std::get<std::string>(data) << std::endl;
-                if(interperateIncomming(std::get<std::string>(data)))
+                if(interperateIncomming(std::get<std::string>(data),id, wdc))
                 {
                     std::cerr << "failed to interperate message\n";
                 }
@@ -344,8 +346,39 @@ int MusicSession::getPlaylistSum()
     return sum;
 }
 
-int MusicSession::interperateIncomming(std::string inp)
+int MusicSession::interperateIncomming(std::string inp, std::string id, std::weak_ptr<rtc::DataChannel> wdc)
 {
+    if (std::shared_ptr<rtc::DataChannel> dc = wdc.lock())
+    {
+        return interperateIncomming(inp,id,dc);
+    }
+    return 1;
+}
+
+int MusicSession::interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc)
+{
+    nlohmann::json message = nlohmann::json::parse(inp);
+    int psum = getPlaylistSum();
+    if (message.find("playlistChkSum").value().is_number_integer())
+    {
+        if (message.find("playlistChkSum").value().get<int>() != psum)
+        {
+            nlohmann::json tmp =
+            {
+                {"badSum", psum}
+            };
+            dc->send(tmp.dump());
+        }
+    }
+    
+    if (message.find("badSum").value().is_number_integer())
+    {
+        int i;
+        for (i = 0; i < playList.size(); i++)
+        {
+            dc->send(playList[i].dump());
+        }
+    }
     
     return 0;
 }
@@ -362,11 +395,15 @@ int MusicSession::greetPeer(std::weak_ptr<rtc::DataChannel> wdc)
 int MusicSession::greetPeer(std::shared_ptr<rtc::DataChannel> dc)
 {
     int i;
+    // nlohmann::json hello={
+    // {"hello", 0}
+    // };
+    // dc->send(hello.dump());
     dc->send(sessionInfo.dump());
-    for (i = 0; i < playList.size(); i++)
-    {
-        dc->send(playList[i].dump());
-    }
+    // for (i = 0; i < playList.size(); i++)
+    // {
+    //     dc->send(playList[i].dump());
+    // }
     return 0;
 }
 
