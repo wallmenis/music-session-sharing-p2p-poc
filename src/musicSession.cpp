@@ -368,6 +368,11 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
                 {"badSum", psum}
             };
             dc->send(tmp.dump());
+            inPlaylistWriteMode = true;
+        }
+        else
+        {
+            inPlaylistWriteMode = false;
         }
     }
     
