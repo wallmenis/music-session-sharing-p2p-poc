@@ -45,8 +45,10 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         localId = randid(5);
         std::cout << "The local ID is " << localId << std::endl;
         
-        std::shared_ptr<rtc::WebSocket> ws = std::make_shared<rtc::WebSocket>();
-        std::weak_ptr<rtc::WebSocket> wws = ws;
+        // std::shared_ptr<rtc::WebSocket> ws = std::make_shared<rtc::WebSocket>();
+        // std::weak_ptr<rtc::WebSocket> wws = ws;
+        ws = std::make_shared<rtc::WebSocket>();
+        wws = ws;
         
         std::promise<void> wsPromise;
         auto wsFuture = wsPromise.get_future();
@@ -64,7 +66,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         ws->onClosed([]() { std::cout << "WebSocket closed" << std::endl; });
         
         
-        ws->onMessage([wws, this](auto data) {
+        ws->onMessage([this](auto data) {
             // data holds either std::string or rtc::binary
             if (!std::holds_alternative<std::string>(data))
                 return;
@@ -245,7 +247,7 @@ int MusicSession::makeConnection(std::string code)
         if (std::holds_alternative<std::string>(data))
         {
             std::cout << "Message from " << code << " received: " << std::get<std::string>(data) << std::endl;
-            if(interperateIncomming(std::get<std::string>(data),code))
+            if(interperateIncomming(std::get<std::string>(data),code, wdc))
             {
                 std::cerr << "failed to interperate message\n";
             }
@@ -359,15 +361,17 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
 {
     nlohmann::json message = nlohmann::json::parse(inp);
     int psum = getPlaylistSum();
-    if (message.find("playlistChkSum").value().is_number_integer())
+    if (message.find("playlistChkSum").value().is_number_integer() || message.find("ok").value().is_number_integer())
     {
-        if (message.find("playlistChkSum").value().get<int>() != psum)
+        if (message.find("playlistChkSum").value().get<int>() != psum || message.find("ok").value().get<int>() != psum)
         {
             nlohmann::json tmp =
             {
                 {"badSum", psum}
             };
             dc->send(tmp.dump());
+            if(!inPlaylistWriteMode)
+                playList.clear();
             inPlaylistWriteMode = true;
         }
         else
@@ -378,14 +382,142 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     
     if (message.find("badSum").value().is_number_integer())
     {
-        int i;
-        for (i = 0; i < playList.size(); i++)
+        nlohmann::json tmp =
         {
-            dc->send(playList[i].dump());
+            {"ok", psum}
+        };
+        if (message.find("badSum").value().get<int>() != psum)
+        {
+            int i;
+            for (i = 0; i < playList.size(); i++)
+            {
+                if(dc->isOpen())
+                    dc->send(playList[i].dump());
+            }
         }
+        dc->send(tmp.dump());
+    }
+    
+    if(!inPlaylistWriteMode)
+    {
+        return setInfo(message);
+    }
+    else {
+        return addSong(message, playList.size());
     }
     
     return 0;
+}
+
+int MusicSession::addSong(nlohmann::json track, int pos)
+{
+    std::string tck = "";
+    std::string uri = "";
+    std::string hash = "";
+    if(track.empty())
+        return 1;
+    if(track.find("track").value().is_string())
+    {
+        tck = track.find("track").value().get<std::string>();
+    }
+    if(track.find("uri").value().is_string())
+    {
+        uri = track.find("uri").value().get<std::string>();
+    }
+    if(track.find("hash").value().is_string())
+    {
+        hash = track.find("hash").value().get<std::string>();
+    }
+    nlohmann::json templateTrack=
+    {
+        {"track", tck},
+        {"uri", uri},
+        {"hash", hash}
+    };
+    if(inPlaylistWriteMode)
+    {
+        return 1;
+    }
+    playList.insert(playList.begin() + pos, templateTrack);
+    return 0;
+}
+
+int MusicSession::setInfo(nlohmann::json info)
+{
+    int returnval = 1;
+    bool isDiff = false;
+    // sessionInfo = 
+    // {
+    //     {"playState", MusicSession::playState::PAUSED},
+    //     {"timeStamp", 0.0},
+    //     {"playlistPos", 0},
+    //     {"numberOfSongs", 0},
+    //     {"playlistChkSum", 0}
+    // };
+    MusicSession::playState ps = sessionInfo.find("playState").value().get<MusicSession::playState>();
+    float ts = sessionInfo.find("timeStamp").value().get<float>();
+    int plp = sessionInfo.find("playlistPos").value().get<int>();
+    int nos = sessionInfo.find("numberOfSongs").value().get<int>();
+    int plcs = sessionInfo.find("playlistChkSum").value().get<int>();
+    if (!info.empty())
+    {
+        MusicSession::playState tmpst;
+        int tmpint;
+        if(info.find("playState").value().is_number_integer())
+        {
+            tmpst= info.find("playState").value().get<MusicSession::playState>();
+            if (ps != tmpst)
+            {
+                ps = tmpst;
+                isDiff = true;
+            }
+        }
+        if(info.find("playlistPos").value().is_number_integer())
+        {
+            tmpint = info.find("playlistPos").value().get<int>();
+            if(tmpint != plp)
+            {
+                plp = tmpint;
+                isDiff = true;
+            }
+        }
+        if(info.find("numberOfSongs").value().is_number_integer())
+        {
+            tmpint = info.find("numberOfSongs").value().get<int>();
+            if (tmpint != nos)
+            {
+                nos = tmpint;
+                isDiff = true;
+            }
+        }
+        if(info.find("playlistChkSum").value().is_number_integer())
+        {
+            tmpint = info.find("playlistChkSum").value().get<int>();
+            if (tmpint != plcs)
+            {
+                plcs = tmpint;
+                isDiff = true;
+            }
+        }
+        if(info.find("timeStamp").value().is_number_float())
+        {
+            float tmp = info.find("timeStamp").value().get<float>();
+            if (tmp - ts + 1.0 > 0.0 || isDiff) // that extra 1 is fot the max latency
+            {
+                ts = tmp;
+            }
+        }
+        sessionInfo = 
+        {
+            {"playState", ps},
+            {"timeStamp", ts},
+            {"playlistPos", plp},
+            {"numberOfSongs", nos},
+            {"playlistChkSum", plcs}
+        };
+        returnval = 0;
+    }
+    return returnval;
 }
 
 int MusicSession::greetPeer(std::weak_ptr<rtc::DataChannel> wdc)

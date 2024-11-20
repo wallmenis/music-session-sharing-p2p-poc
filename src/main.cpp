@@ -34,6 +34,19 @@ int main()
     // };
     // std::cout << test.find("test").value() << "\n";
     //std::cout << configs.find("signaling_server").value() << "\n";
+    //std::cout << MusicSession::playState::PLAYING << std::endl;
+    
+    
+    
+    
     std::unique_ptr<MusicSession> mu = std::make_unique<MusicSession>(configs);
+    
+    std::string inp;
+    
+    std::cout << mu->getCode() << "\n Please enter peer code:";
+    std::cin >> inp;
+    mu->makeConnection(inp);
+    
+    mu->endSession();
     return 0;
 }

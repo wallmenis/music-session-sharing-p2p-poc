@@ -17,10 +17,31 @@
 
 
 class MusicSession{
+
+    public:
+        MusicSession(nlohmann::json connectionInfo);
+        //MusicSession();
+        int addSong(nlohmann::json track, int pos);
+        void removeSong(int playlistPoint);
+        std::string getCode();
+        int makeConnection(std::string code);
+
+        void endSession();
+        nlohmann::json getSessionInfo();
+        nlohmann::json getSongInfo();
+        std::vector<nlohmann::json> getPlaylist();
+        enum playState{
+            PLAYING,
+            PAUSED,
+            NEXT,
+            PREVIOUS
+        };
+        ~MusicSession();
     private:
         nlohmann::json sessionInfo;
         rtc::Configuration conf;
         std::shared_ptr<rtc::WebSocket> ws;
+        std::weak_ptr<rtc::WebSocket> wws;
         std::string localId;
         std::unordered_map<std::string, std::shared_ptr<rtc::PeerConnection>> peerConnectionMap;
         std::unordered_map<std::string, std::shared_ptr<rtc::DataChannel>> dataChannelMap;
@@ -36,26 +57,8 @@ class MusicSession{
         int interperateIncomming(std::string inp, std::string id, std::weak_ptr<rtc::DataChannel> wdc);
         int greetPeer(std::shared_ptr<rtc::DataChannel> dc);
         int greetPeer(std::weak_ptr<rtc::DataChannel> dc);
-        int getPlaylistSum();
-    public:
-        MusicSession(nlohmann::json connectionInfo);
-        //MusicSession();
-        void addSong(nlohmann::json songInfo, int playlistPoint);
-        void removeSong(int playlistPoint);
-        std::string getCode();
-        int makeConnection(std::string code);
+        int setInfo(nlohmann::json info);
         int sendUpdate();
-        void setTimestamp();
         int getUpdate();
-        void endSession();
-        nlohmann::json getSessionInfo();
-        nlohmann::json getSongInfo();
-        std::vector<nlohmann::json> getPlaylist();
-        enum playState{
-            PLAYING,
-            PAUSED,
-            NEXT,
-            PREVIOUS
-        };
-        ~MusicSession();
+        int getPlaylistSum();
 };

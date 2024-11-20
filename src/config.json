@@ -1,4 +1,4 @@
 {
-    "signaling_server" : "192.168.122.1:8000",
-    "ice_server" : "192.168.122.1:3479"
+    "signaling_server" : "127.0.0.1:8000",
+    "ice_server" : "127.0.0.1:3479"
 }
