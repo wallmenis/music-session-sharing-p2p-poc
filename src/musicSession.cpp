@@ -400,7 +400,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     
     if(!inPlaylistWriteMode)
     {
-        return setInfo(message);
+        return setInfoUpdate(message);
     }
     else {
         return addSong(message, playList.size());
@@ -442,7 +442,7 @@ int MusicSession::addSong(nlohmann::json track, int pos)
     return 0;
 }
 
-int MusicSession::setInfo(nlohmann::json info)
+int MusicSession::setInfoUpdate(nlohmann::json info)
 {
     int returnval = 1;
     bool isDiff = false;
@@ -555,4 +555,23 @@ std::string MusicSession::randid(int size)
         outp << maptonum[rand()%36];
     }
     return outp.str();
+}
+
+int MusicSession::setInfo(nlohmann::json info)
+{
+    userUpdate=true;
+    nlohmann::json askForUser=
+    {
+        {"upd" , localId}
+    };
+    for (auto conne : dataChannelMap)
+    {
+        if(conne.second->isOpen())
+        {
+            conne.second->send(askForUser.dump());
+        }
+    }
+    setInfoUpdate(info);
+    userUpdate=false;
+    return 0;
 }

@@ -45,7 +45,11 @@ int main()
     
     std::cout << mu->getCode() << "\n Please enter peer code:";
     std::cin >> inp;
+    std::cin.ignore();
     mu->makeConnection(inp);
+    
+    
+    std::cin >> inp;
     
     mu->endSession();
     return 0;
