@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: Dimosthenis Krallis
+
 #ifndef MUSICSESSION_H
 #define MUSICSESSION_H
 

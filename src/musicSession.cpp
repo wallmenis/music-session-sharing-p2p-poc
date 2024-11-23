@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+
+
 /**
  * libdatachannel client example -> music thesis
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
