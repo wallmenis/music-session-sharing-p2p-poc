@@ -462,6 +462,7 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
     int plp = sessionInfo.find("playlistPos").value().get<int>();
     int nos = sessionInfo.find("numberOfSongs").value().get<int>();
     int plcs = sessionInfo.find("playlistChkSum").value().get<int>();
+    int prm = sessionInfo.find("priority").value().get<int>();
     if (!info.empty())
     {
         MusicSession::playState tmpst;
@@ -510,13 +511,19 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
                 ts = tmp;
             }
         }
+        if(info.find("priority").value().is_number_integer())
+        {
+            std::string tmp = info.find("priority").value().get<std::string>();
+            priorityMessage = tmp;
+        }
         sessionInfo = 
         {
             {"playState", ps},
             {"timeStamp", ts},
             {"playlistPos", plp},
             {"numberOfSongs", nos},
-            {"playlistChkSum", plcs}
+            {"playlistChkSum", plcs},
+            {"priority", priorityMessage}
         };
         returnval = 0;
     }
@@ -562,10 +569,20 @@ std::string MusicSession::randid(int size)
 
 int MusicSession::setInfo(nlohmann::json info)
 {
-    userUpdate=true;
+    MusicSession::playState ps = info.find("playState").value().get<MusicSession::playState>();
+    float ts = info.find("timeStamp").value().get<float>();
+    int plp = info.find("playlistPos").value().get<int>();
+    int nos = info.find("numberOfSongs").value().get<int>();
+    int plcs = info.find("playlistChkSum").value().get<int>();
+    int prm = info.find("priority").value().get<int>();
     nlohmann::json askForUser=
     {
-        {"upd" , localId}
+        {"playState", ps},
+        {"timeStamp", ts},
+        {"playlistPos", plp},
+        {"numberOfSongs", nos},
+        {"playlistChkSum", plcs},
+        {"priority" , localId}
     };
     for (auto conne : dataChannelMap)
     {
@@ -575,6 +592,5 @@ int MusicSession::setInfo(nlohmann::json info)
         }
     }
     setInfoUpdate(info);
-    userUpdate=false;
     return 0;
 }

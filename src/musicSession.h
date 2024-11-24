@@ -54,17 +54,18 @@ class MusicSession{
         std::string randid(int size);
         
         bool inPlaylistWriteMode;
-        bool userUpdate;
+        std::string priorityMessage;
         
-        
+        int setInfoUpdate(nlohmann::json info);
         int interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc);
         int interperateIncomming(std::string inp, std::string id, std::weak_ptr<rtc::DataChannel> wdc);
         int greetPeer(std::shared_ptr<rtc::DataChannel> dc);
         int greetPeer(std::weak_ptr<rtc::DataChannel> dc);
-        int setInfoUpdate(nlohmann::json info);
+        
         int sendUpdate();
         int getUpdate();
-        int getPlaylistSum();
+        
     public:
+        int getPlaylistSum();
         int setInfo(nlohmann::json info);
 };

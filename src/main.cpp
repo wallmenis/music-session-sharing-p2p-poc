@@ -43,14 +43,33 @@ int main()
     
     std::string inp;
     
-    std::cout << mu->getCode() << "\n Please enter peer code:";
+    std::cout << mu->getCode() << "\nPlease enter peer code: ";
     std::cin >> inp;
     std::cin.ignore();
     mu->makeConnection(inp);
     
+    nlohmann::json track;
     
+    track = {
+        {"track","gamer"},
+        {"hash", "gaming"},
+        {"uri", "no"}
+    };
+    
+    mu->addSong(track,0);
+    
+    nlohmann::json sessionInfo = 
+    {
+        {"playState", MusicSession::playState::PLAYING},
+        {"timeStamp",0.0},
+        {"playlistPos", 0},
+        {"numberOfSongs", 1},
+        {"playlistChkSum", mu->getPlaylistSum()},
+        {"priority", mu->getCode()}
+    };
+    mu->setInfo(sessionInfo);
+    while(true);
     std::cin >> inp;
-    
     mu->endSession();
     return 0;
 }
