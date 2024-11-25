@@ -33,7 +33,8 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         {"timeStamp", 0.0},
         {"playlistPos", 0},
         {"numberOfSongs", 0},
-        {"playlistChkSum", 0}
+        {"playlistChkSum", 0},
+        {"priority" , "none"}
     };
     // tmp = connectionInfo.find("enabledTURN");
     // auto is_turn = tmp->get<std::string>();
@@ -56,25 +57,38 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         std::promise<void> wsPromise;
         auto wsFuture = wsPromise.get_future();
         
-        ws->onOpen([&wsPromise]() {
+        ws->onOpen([&wsPromise, this]() {
             std::cout << "WebSocket connected, signaling ready" << std::endl;
             wsPromise.set_value();
+            wsConnected = true;
         });
         
-        ws->onError([&wsPromise](std::string s) {
+        ws->onError([&wsPromise, this](std::string s) {
             std::cout << "WebSocket error" << std::endl;
             wsPromise.set_exception(std::make_exception_ptr(std::runtime_error(s)));
+            wsConnected = false;
         });
         
-        ws->onClosed([]() { std::cout << "WebSocket closed" << std::endl; });
+        ws->onClosed([this]() { 
+            std::cout << "WebSocket closed" << std::endl; 
+            wsConnected = false;
+        });
         
         
         ws->onMessage([this](auto data) {
             // data holds either std::string or rtc::binary
+            std::cout << "got data from signaling server\n";
             if (!std::holds_alternative<std::string>(data))
+            {
+                std::cout << "got binary from signaling server... exiting...\n";
                 return;
+            }
+                
+            std::cout << "got string: " << std::get<std::string>(data) << "\n";
             
             nlohmann::json message = nlohmann::json::parse(std::get<std::string>(data));
+            
+            std::cout << "-----------here----------\n";
             
             auto it = message.find("id");
             if (it == message.end())
@@ -227,7 +241,7 @@ int MusicSession::makeConnection(std::string code)
     auto pc = createPeerConnection(conf, ws, code);
     
     // We are the offerer, so create a data channel to initiate the process
-    const std::string label = "test";
+    const std::string label = "GAMER";
     std::cout << "Creating DataChannel with label \"" << label << "\"" << std::endl;
     auto dc = pc->createDataChannel(label);
     
@@ -235,10 +249,11 @@ int MusicSession::makeConnection(std::string code)
     
     dc->onOpen([code, wdc, this]() {
         std::cout << "DataChannel from " << code << " open" << std::endl;
-        if (greetPeer(wdc))
+        /*if (greetPeer(wdc))
         {
             std::cout << "failed to greet peer...\n";
-        }
+        }*/
+        dcConnected = true;
     });
     
     dc->onClosed([code, this]() {
@@ -247,6 +262,7 @@ int MusicSession::makeConnection(std::string code)
     
     dc->onMessage([code, wdc, this](auto data) {
         // data holds either std::string or rtc::binary
+        std::cout << "Got from " << code << std::endl;
         if (std::holds_alternative<std::string>(data))
         {
             std::cout << "Message from " << code << " received: " << std::get<std::string>(data) << std::endl;
@@ -273,7 +289,7 @@ int MusicSession::makeConnection(std::string code)
 
 std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rtc::Configuration &config, std::weak_ptr<rtc::WebSocket> wws, std::string id) {
     auto pc = std::make_shared<rtc::PeerConnection>(config);
-    
+    std::cout << "created peer connection\n";
     pc->onStateChange(
         [](rtc::PeerConnection::State state) { std::cout << "State: " << state << std::endl; });
     
@@ -282,39 +298,47 @@ std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rt
     });
     
     pc->onLocalDescription([wws, id](rtc::Description description) {
+        std::cout << "sending local description\n";
         nlohmann::json message = {{"id", id},
         {"type", description.typeString()},
-                           {"description", std::string(description)}};
-                           
-                           if (auto ws = wws.lock())
-                               ws->send(message.dump());
+        {"description", std::string(description)}};
+        if (auto ws = wws.lock())
+        {
+            ws->send(message.dump());
+            std::cout << "sent local description\n";
+        }
     });
     
     pc->onLocalCandidate([wws, id](rtc::Candidate candidate) {
+        std::cout << "sending local candidate\n";
         nlohmann::json message = {{"id", id},
         {"type", "candidate"},
         {"candidate", std::string(candidate)},
-                         {"mid", candidate.mid()}};
-                         
-                         if (auto ws = wws.lock())
-                             ws->send(message.dump());
+        {"mid", candidate.mid()}};
+        if (auto ws = wws.lock())
+        {
+            ws->send(message.dump());
+            std::cout << "sent local candidate\n";
+        }
+        
     });
     
     pc->onDataChannel([id,this](std::shared_ptr<rtc::DataChannel> dc) {
-        std::cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""
-        << std::endl;
+        std::cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""<< std::endl;
         std::weak_ptr<rtc::DataChannel> wdc = dc;
         dc->onOpen([wdc, this]() {
-            if (greetPeer(wdc))
+            std::cout << "datachannel open\n";
+            /*if (greetPeer(wdc))
             {
                 std::cout << "failed to greet peer...\n";
-            }
+            }*/
         });
         
         dc->onClosed([id]() { std::cout << "DataChannel from " << id << " closed" << std::endl; });
         
         dc->onMessage([id,wdc, this](auto data) {
             // data holds either std::string or rtc::binary
+            std::cout << "Got from " << id << std::endl;
             if (std::holds_alternative<std::string>(data))
             {
                 std::cout << "Message from " << id << " received: " << std::get<std::string>(data) << std::endl;
@@ -362,7 +386,9 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::wea
 
 int MusicSession::interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc)
 {
+    std::cout << "interperating\n";
     nlohmann::json message = nlohmann::json::parse(inp);
+    
     int psum = getPlaylistSum();
     if (message.find("playlistChkSum").value().is_number_integer() || message.find("ok").value().is_number_integer())
     {
@@ -457,6 +483,7 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
     //     {"numberOfSongs", 0},
     //     {"playlistChkSum", 0}
     // };
+    std::cout << "setting info update\n";
     MusicSession::playState ps = sessionInfo.find("playState").value().get<MusicSession::playState>();
     float ts = sessionInfo.find("timeStamp").value().get<float>();
     int plp = sessionInfo.find("playlistPos").value().get<int>();
@@ -511,7 +538,7 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
                 ts = tmp;
             }
         }
-        if(info.find("priority").value().is_number_integer())
+        if(info.find("priority").value().is_string())
         {
             std::string tmp = info.find("priority").value().get<std::string>();
             priorityMessage = tmp;
@@ -569,12 +596,13 @@ std::string MusicSession::randid(int size)
 
 int MusicSession::setInfo(nlohmann::json info)
 {
+    std::cout << "setting info\n";
     MusicSession::playState ps = info.find("playState").value().get<MusicSession::playState>();
     float ts = info.find("timeStamp").value().get<float>();
     int plp = info.find("playlistPos").value().get<int>();
     int nos = info.find("numberOfSongs").value().get<int>();
     int plcs = info.find("playlistChkSum").value().get<int>();
-    int prm = info.find("priority").value().get<int>();
+    std::string prm = info.find("priority").value().get<std::string>();
     nlohmann::json askForUser=
     {
         {"playState", ps},
@@ -594,3 +622,5 @@ int MusicSession::setInfo(nlohmann::json info)
     setInfoUpdate(info);
     return 0;
 }
+
+

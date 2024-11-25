@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 
-#endif
+
 
 
 class MusicSession{
@@ -53,6 +53,10 @@ class MusicSession{
         void cleanConnections();
         std::string randid(int size);
         
+        bool wsConnected;
+        bool dcConnected;
+        bool pcConnected;
+        
         bool inPlaylistWriteMode;
         std::string priorityMessage;
         
@@ -68,4 +72,7 @@ class MusicSession{
     public:
         int getPlaylistSum();
         int setInfo(nlohmann::json info);
+        int getIfReady();
 };
+
+#endif
