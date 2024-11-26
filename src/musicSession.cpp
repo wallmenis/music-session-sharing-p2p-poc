@@ -36,6 +36,9 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         {"playlistChkSum", 0},
         {"priority" , "none"}
     };
+    lockPlayList = 0;
+    lockSession = 0;
+    lackingPeers.clear();
     // tmp = connectionInfo.find("enabledTURN");
     // auto is_turn = tmp->get<std::string>();
     try {
@@ -44,7 +47,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         
         //rtc::Configuration config;
         
-        lockPlayList = false;
+
         
         localId = randid(5);
         std::cout << "The local ID is " << localId << std::endl;
@@ -215,6 +218,8 @@ void MusicSession::cleanConnections()
     std::cout << "Cleaning up..." << std::endl;
     dataChannelMap.clear();
     peerConnectionMap.clear();
+    lackingPeers.clear();
+    playList.clear();
 }
 
 std::string MusicSession::getCode()
@@ -388,18 +393,25 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
 {
     std::cout << "interperating\n";
     nlohmann::json message = nlohmann::json::parse(inp);
+    std::vector<nlohmann::json> plv;
+    plv.clear();
     
     int psum = getPlaylistSum();
-    if (message.find("playlistChkSum").value().is_number_integer() || message.find("ok").value().is_number_integer())
+    int playlistLength = getPlaylist().size();
+    if (message.find("playlistChkSum").value().is_number_integer() 
+        || message.find("ok").value().is_number_integer() 
+        || message.find("numberOfSongs").value().is_number_integer())
     {
-        if (message.find("playlistChkSum").value().get<int>() != psum || message.find("ok").value().get<int>() != psum)
+        if (message.find("playlistChkSum").value().get<int>() != psum 
+            || message.find("ok").value().get<int>() != psum 
+            || message.find("numberOfSongs").value().get<int>() != playlistLength)
         {
             nlohmann::json tmp =
             {
                 {"badSum", psum}
             };
             dc->send(tmp.dump());
-            if(!inPlaylistWriteMode)
+            if(!inPlaylistWriteMode || message.find("numberOfSongs").value().get<int>() < playlistLength)
                 playList.clear();
             inPlaylistWriteMode = true;
         }
@@ -409,21 +421,29 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         }
     }
     
-    if (message.find("badSum").value().is_number_integer())
+    if (message.find("badSum").value().is_number_integer() && lackingPeers.find(id)->second) //please change me
     {
+        lackingPeers.emplace(id,true);
         nlohmann::json tmp =
         {
             {"ok", psum}
         };
         if (message.find("badSum").value().get<int>() != psum)
         {
-            int i;
-            for (i = 0; i < playList.size(); i++)
+            plv = getPlaylist();
+            for (nlohmann::json song : plv)
             {
                 if(dc->isOpen())
-                    dc->send(playList[i].dump());
+                    dc->send(song.dump());
             }
+            // int i;
+            // for (i = 0; i < playList.size(); i++)
+            // {
+            //     if(dc->isOpen())
+            //         dc->send(playList[i].dump());
+            // }
         }
+        lackingPeers.erase(id);
         dc->send(tmp.dump());
     }
     
@@ -467,11 +487,13 @@ int MusicSession::addSong(nlohmann::json track, int pos)
     {
         return 1;
     }
-    if(lockPlayList)
+    if(lockPlayList!=0)
     {
         return 2;
     }
+    lockPlayList++;
     playList.insert(playList.begin() + pos, templateTrack);
+    lockPlayList--;
     return 0;
 }
 
@@ -537,7 +559,7 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
         if(info.find("timeStamp").value().is_number_float())
         {
             float tmp = info.find("timeStamp").value().get<float>();
-            if (tmp - ts + 1.0 > 0.0 || isDiff) // that extra 1 is fot the max latency
+            if (tmp - ts + 1000 > 0 || isDiff) // that extra 1 is fot the max latency
             {
                 ts = tmp;
             }
@@ -547,16 +569,21 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
             std::string tmp = info.find("priority").value().get<std::string>();
             priorityMessage = tmp;
         }
-        sessionInfo = 
+        if(lockSession==0)
         {
-            {"playState", ps},
-            {"timeStamp", ts},
-            {"playlistPos", plp},
-            {"numberOfSongs", nos},
-            {"playlistChkSum", plcs},
-            {"priority", priorityMessage}
-        };
-        returnval = 0;
+            lockSession++;
+            sessionInfo = 
+            {
+                {"playState", ps},
+                {"timeStamp", ts},
+                {"playlistPos", plp},
+                {"numberOfSongs", nos},
+                {"playlistChkSum", plcs},
+                {"priority", priorityMessage}
+            };
+            lockSession--;
+            returnval = 0;
+        }
     }
     return returnval;
 }
@@ -616,6 +643,10 @@ int MusicSession::setInfo(nlohmann::json info)
         {"playlistChkSum", plcs},
         {"priority" , localId}
     };
+    if(inPlaylistWriteMode)
+    {
+        return 3;
+    }
     for (auto conne : dataChannelMap)
     {
         if(conne.second->isOpen())
@@ -623,20 +654,31 @@ int MusicSession::setInfo(nlohmann::json info)
             conne.second->send(askForUser.dump());
         }
     }
-    setInfoUpdate(info);
-    return 0;
+    return setInfoUpdate(info);
 }
 
 nlohmann::json MusicSession::getSessionInfo()
 {
-    return sessionInfo;
+    nlohmann::json returnVal;
+    if(lockSession == 0)
+    {
+        lockSession++;
+        sessionInfoBuffer = nlohmann::json(sessionInfo);
+        lockSession--;
+    }
+    returnVal = nlohmann::json(sessionInfoBuffer);
+    return returnVal;
 }
 
 std::vector<nlohmann::json> MusicSession::getPlaylist()
 {
     std::vector<nlohmann::json> returnVal;
-    lockPlayList = true;
-    returnVal.assign(playList.begin(), playList.end());
-    lockPlayList = false;
+    if(lockPlayList == 0)
+    {
+        lockPlayList++;
+        playListBuffer.assign(playList.begin(), playList.end());
+        lockPlayList--;
+    }
+    returnVal.assign(playListBuffer.begin(), playListBuffer.end());
     return returnVal;
 }

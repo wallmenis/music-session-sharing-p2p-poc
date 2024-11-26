@@ -25,7 +25,8 @@ class MusicSession{
         bool wsConnected;
         bool dcConnected;
         bool pcConnected;
-        bool lockPlayList;
+        int lockPlayList;
+        int lockSession;
     public:
         MusicSession(nlohmann::json connectionInfo);
         //MusicSession();
@@ -47,13 +48,16 @@ class MusicSession{
         ~MusicSession();
     private:
         nlohmann::json sessionInfo;
+        nlohmann::json sessionInfoBuffer;
         rtc::Configuration conf;
         std::shared_ptr<rtc::WebSocket> ws;
         std::weak_ptr<rtc::WebSocket> wws;
         std::string localId;
+        std::unordered_map<std::string, bool> lackingPeers;
         std::unordered_map<std::string, std::shared_ptr<rtc::PeerConnection>> peerConnectionMap;
         std::unordered_map<std::string, std::shared_ptr<rtc::DataChannel>> dataChannelMap;
         std::vector<nlohmann::json> playList;
+        std::vector<nlohmann::json> playListBuffer;
         std::shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,std::weak_ptr<rtc::WebSocket> wws, std::string id);
         void cleanConnections();
         std::string randid(int size);
