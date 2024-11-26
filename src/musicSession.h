@@ -20,7 +20,12 @@
 
 
 class MusicSession{
-
+    
+    private:
+        bool wsConnected;
+        bool dcConnected;
+        bool pcConnected;
+        bool lockPlayList;
     public:
         MusicSession(nlohmann::json connectionInfo);
         //MusicSession();
@@ -53,9 +58,7 @@ class MusicSession{
         void cleanConnections();
         std::string randid(int size);
         
-        bool wsConnected;
-        bool dcConnected;
-        bool pcConnected;
+        
         
         bool inPlaylistWriteMode;
         std::string priorityMessage;

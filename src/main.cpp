@@ -2,6 +2,7 @@
 #include <memory>
 #include <fstream>
 #include <nlohmann/json_fwd.hpp>
+#include <unistd.h>
 
 int main()
 {
@@ -61,14 +62,23 @@ int main()
     nlohmann::json sessionInfo = 
     {
         {"playState", MusicSession::playState::PLAYING},
-        {"timeStamp",0.0},
+        {"timeStamp",0},
         {"playlistPos", 0},
         {"numberOfSongs", 1},
         {"playlistChkSum", mu->getPlaylistSum()},
         {"priority", mu->getCode()}
     };
     mu->setInfo(sessionInfo);
-    while(true);
+    while(true)
+    {
+        sleep(1);
+        std::cout << mu->getSessionInfo().dump() << std::endl;
+        std::vector<nlohmann::json> psnapshot(mu->getPlaylist());
+        for ( nlohmann::json song : psnapshot)
+        {
+            std::cout << song.dump() << "\n";
+        }
+    }
     std::cin >> inp;
     mu->endSession();
     return 0;

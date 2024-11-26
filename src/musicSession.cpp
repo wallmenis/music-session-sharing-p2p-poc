@@ -30,7 +30,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
     sessionInfo = 
     {
         {"playState", MusicSession::playState::PAUSED},
-        {"timeStamp", 0.0},
+        {"timeStamp", 0},
         {"playlistPos", 0},
         {"numberOfSongs", 0},
         {"playlistChkSum", 0},
@@ -44,7 +44,7 @@ MusicSession::MusicSession(nlohmann::json connectionInfo)
         
         //rtc::Configuration config;
         
-        
+        lockPlayList = false;
         
         localId = randid(5);
         std::cout << "The local ID is " << localId << std::endl;
@@ -467,6 +467,10 @@ int MusicSession::addSong(nlohmann::json track, int pos)
     {
         return 1;
     }
+    if(lockPlayList)
+    {
+        return 2;
+    }
     playList.insert(playList.begin() + pos, templateTrack);
     return 0;
 }
@@ -485,11 +489,11 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
     // };
     std::cout << "setting info update\n";
     MusicSession::playState ps = sessionInfo.find("playState").value().get<MusicSession::playState>();
-    float ts = sessionInfo.find("timeStamp").value().get<float>();
+    int ts = sessionInfo.find("timeStamp").value().get<int>();
     int plp = sessionInfo.find("playlistPos").value().get<int>();
     int nos = sessionInfo.find("numberOfSongs").value().get<int>();
     int plcs = sessionInfo.find("playlistChkSum").value().get<int>();
-    int prm = sessionInfo.find("priority").value().get<int>();
+    std::string prm = sessionInfo.find("priority").value().get<std::string>();
     if (!info.empty())
     {
         MusicSession::playState tmpst;
@@ -598,7 +602,7 @@ int MusicSession::setInfo(nlohmann::json info)
 {
     std::cout << "setting info\n";
     MusicSession::playState ps = info.find("playState").value().get<MusicSession::playState>();
-    float ts = info.find("timeStamp").value().get<float>();
+    int ts = info.find("timeStamp").value().get<int>();
     int plp = info.find("playlistPos").value().get<int>();
     int nos = info.find("numberOfSongs").value().get<int>();
     int plcs = info.find("playlistChkSum").value().get<int>();
@@ -623,4 +627,16 @@ int MusicSession::setInfo(nlohmann::json info)
     return 0;
 }
 
+nlohmann::json MusicSession::getSessionInfo()
+{
+    return sessionInfo;
+}
 
+std::vector<nlohmann::json> MusicSession::getPlaylist()
+{
+    std::vector<nlohmann::json> returnVal;
+    lockPlayList = true;
+    returnVal.assign(playList.begin(), playList.end());
+    lockPlayList = false;
+    return returnVal;
+}
