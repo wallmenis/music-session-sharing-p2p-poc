@@ -421,30 +421,35 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         }
     }
     
-    if (message.find("badSum").value().is_number_integer() && lackingPeers.find(id)->second) //please change me
+    if (message.find("badSum").value().is_number_integer())
     {
-        lackingPeers.emplace(id,true);
-        nlohmann::json tmp =
+        if(lackingPeers.find(id) == lackingPeers.end())
         {
-            {"ok", psum}
-        };
-        if (message.find("badSum").value().get<int>() != psum)
-        {
-            plv = getPlaylist();
-            for (nlohmann::json song : plv)
+            lackingPeers.emplace(id,true);
+        // }
+        // if(lackingPeers){
+            nlohmann::json tmp =
             {
-                if(dc->isOpen())
-                    dc->send(song.dump());
+                {"ok", psum}
+            };
+            if (message.find("badSum").value().get<int>() != psum) // || )
+            {
+                plv = getPlaylist();
+                for (nlohmann::json song : plv)
+                {
+                    if(dc->isOpen())
+                        dc->send(song.dump());
+                }
+                // int i;
+                // for (i = 0; i < playList.size(); i++)
+                // {
+                //     if(dc->isOpen())
+                //         dc->send(playList[i].dump());
+                // }
             }
-            // int i;
-            // for (i = 0; i < playList.size(); i++)
-            // {
-            //     if(dc->isOpen())
-            //         dc->send(playList[i].dump());
-            // }
+            lackingPeers.erase(id);
+            dc->send(tmp.dump());
         }
-        lackingPeers.erase(id);
-        dc->send(tmp.dump());
     }
     
     if(!inPlaylistWriteMode)
