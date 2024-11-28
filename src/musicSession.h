@@ -88,6 +88,7 @@ class MusicSession{
         bool getIfCanBeHeard();
         void waitUntilCanBeHeard();
         int getNumberOfPeers();
+        int askSync();
 };
 
 #endif

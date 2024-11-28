@@ -19,6 +19,7 @@
 #include "musicSession.h"
 #include <iostream>
 #include <nlohmann/json_fwd.hpp>
+#include <rtc/datachannel.hpp>
 
 MusicSession::MusicSession(nlohmann::json connectionInfo)
 //MusicSession::MusicSession()
@@ -876,10 +877,33 @@ int MusicSession::getNumberOfPeers()
 
 bool MusicSession::getIfCanBeHeard()
 {
-    return wsConnected && pcConnected && dcConnected;
+    for (auto conne : dataChannelMap)
+    {
+        if(conne.second->isOpen())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void MusicSession::waitUntilCanBeHeard()
 {
     while(!getIfCanBeHeard());
+}
+
+int MusicSession::askSync()
+{
+    nlohmann::json msg = getSessionInfo();
+    if (getIfFieldIsString(msg, "priority"))
+    {
+        std::shared_ptr<rtc::DataChannel> dc = dataChannelMap[msg["priority"]];
+        if(dc->isOpen())
+        {
+            dc->send(msg.dump());
+            return 0;
+        }
+        return 2;
+    }
+    return 1;
 }
