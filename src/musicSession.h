@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 
-
+#define KEYLEN 5
 
 
 class MusicSession{
@@ -75,11 +75,17 @@ class MusicSession{
         
         int sendUpdate();
         int getUpdate();
+        bool getIfFieldIsInteger(nlohmann::json message, std::string field);
+        bool getIfFieldIsString(nlohmann::json message, std::string field);
+        
+        int safeCheckIntEq(nlohmann::json message,std::string field, int inp);
         
     public:
         int getPlaylistSum();
         int setInfo(nlohmann::json info);
-        int getIfReady();
+        bool getIfCanBeHeard();
+        void waitUntilCanBeHeard();
+        int getNumberOfPeers();
 };
 
 #endif
