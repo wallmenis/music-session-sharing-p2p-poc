@@ -30,7 +30,9 @@ class MusicSession{
     public:
         MusicSession(nlohmann::json connectionInfo);
         //MusicSession();
+        int addSong(nlohmann::json track);
         int addSong(nlohmann::json track, int pos);
+        int addSong(nlohmann::json track, int pos, bool force);
         void removeSong(int playlistPoint);
         std::string getCode();
         int makeConnection(std::string code);

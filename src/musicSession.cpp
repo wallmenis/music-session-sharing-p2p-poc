@@ -401,8 +401,39 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     std::vector<nlohmann::json> plv;
     plv.clear();
     
+    
+    
     int psum = getPlaylistSum();
     int playlistLength = getPlaylist().size();
+    if(getIfFieldIsInteger(message, "numberOfSongs"))
+    {
+        std::cout << "nos: " << message.find("numberOfSongs").value().get<int>() <<"\n";
+        if(message.find("numberOfSongs").value().get<int>() < playlistLength)
+        {
+            playList.clear();
+            inPlaylistWriteMode = true;
+        }
+    }
+    if(safeCheckIntEq(message, "playlistChkSum", psum)==2 || safeCheckIntEq(message, "ok", psum)==2)
+    {
+        inPlaylistWriteMode = false;
+    }
+    else {
+        
+        if(!inPlaylistWriteMode)
+        {
+            nlohmann::json tmp =
+            {
+                {"badSum", psum}
+            };
+            std::string tstr = tmp.dump();
+            //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tstr << "\n";
+            dc->send(tstr);
+        }
+        inPlaylistWriteMode = true;
+    }
+    playlistLength = getPlaylist().size();
+    std::cout << "Playlist sum: " << psum << "\nPlaylist length: " <<playlistLength << "\n";
     // if (message.find("playlistChkSum").value().is_number_integer() 
     //     || message.find("ok").value().is_number_integer() 
     //     || message.find("numberOfSongs").value().is_number_integer())
@@ -436,34 +467,30 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     }
     */
     
-    if (safeCheckIntEq(message, "playlistChkSum", psum) == 1                        // 1 is for not equal
-        || safeCheckIntEq(message, "ok", psum) == 1 
-        || safeCheckIntEq(message, "numberOfSongs", playlistLength) == 1)
-    {
-        nlohmann::json tmp =
-        {
-            {"badSum", psum}
-        };
-        std::string tstr = tmp.dump();
-        //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tstr << "\n";
-        dc->send(tstr);
-        if(!inPlaylistWriteMode)
-            playList.clear();
-        if(getIfFieldIsInteger(message, "numberOfSongs"))
-        {
-            if(message.find("numberOfSongs").value().get<int>() < playlistLength)
-                playList.clear();
-        }
-        if(!inPlaylistWriteMode)
-            inPlaylistWriteMode = true;
-    }
-    else
-    {
-        if(safeCheckIntEq(message, "playlistChkSum", psum)==2 || safeCheckIntEq(message, "ok", psum)==2)
-        {
-            inPlaylistWriteMode = false;
-        }
-    }
+//     if (safeCheckIntEq(message, "playlistChkSum", psum) == 1                        // 1 is for not equal
+//         || safeCheckIntEq(message, "ok", psum) == 1 
+//         || safeCheckIntEq(message, "numberOfSongs", playlistLength) == 1)
+//     {
+//         nlohmann::json tmp =
+//         {
+//             {"badSum", psum}
+//         };
+//         std::string tstr = tmp.dump();
+//         std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tstr << "\n";
+//         dc->send(tstr);
+//         if(!inPlaylistWriteMode)
+//             playList.clear();
+//         
+//         if(!inPlaylistWriteMode)
+//             inPlaylistWriteMode = true;
+//     }
+//     else
+//     {
+//         if(safeCheckIntEq(message, "playlistChkSum", psum)==2 || safeCheckIntEq(message, "ok", psum)==2)
+//         {
+//             inPlaylistWriteMode = false;
+//         }
+//     }
     
     // if (message.find("badSum").value().is_number_integer())
     if (getIfFieldIsInteger(message, "badSum"))
@@ -472,11 +499,12 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         {
             lackingPeers.emplace(id,true);
         // }
-        // if(lackingPeers){
-            // nlohmann::json tmp =
+        //if(lackingPeers){
+            nlohmann::json tmp = getSessionInfo();
             // {
             //     {"ok", psum}
             // };
+            tmp.push_back({"ok", psum});
             if (message.find("badSum").value().get<int>() != psum) // || )
             {
                 plv = getPlaylist();
@@ -498,8 +526,9 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
             }
             lackingPeers.erase(id);
             //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tmp.dump() << "\n";
-            //dc->send(tmp.dump());
-            dc->send(getSessionInfo().dump());
+            
+            dc->send(tmp.dump());
+            //dc->send(getSessionInfo().dump());
         }
     }
     
@@ -508,13 +537,23 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         return setInfoUpdate(message);
     }
     else {
-        return addSong(message, playList.size());
+        return addSong(message, getPlaylist().size(), true);
     }
     
     return 0;
 }
 
+int MusicSession::addSong(nlohmann::json track)
+{
+    return addSong(track, getPlaylist().size(), false);
+}
+
 int MusicSession::addSong(nlohmann::json track, int pos)
+{
+    return addSong(track, pos, false);
+}
+
+int MusicSession::addSong(nlohmann::json track, int pos, bool force)
 {
     std::string tck = "";
     std::string uri = "";
@@ -542,7 +581,7 @@ int MusicSession::addSong(nlohmann::json track, int pos)
         {"uri", uri},
         {"hash", hash}
     };
-    if(inPlaylistWriteMode)
+    if(inPlaylistWriteMode && !force)
     {
         return 1;
     }
@@ -551,9 +590,13 @@ int MusicSession::addSong(nlohmann::json track, int pos)
         return 2;
     }
     lockPlayList++;
-    std::cout << "Added " << templateTrack << "\n";
+    std::cout << "\n\nAdded " << templateTrack << "\n";
     playList.insert(playList.begin() + pos, templateTrack);
     lockPlayList--;
+    nlohmann::json toSet = getSessionInfo();
+    toSet["playlistChkSum"] = getPlaylistSum();
+    toSet["numberOfSongs"] = getPlaylist().size();
+    setInfoUpdate(toSet);
     return 0;
 }
 
