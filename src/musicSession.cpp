@@ -20,6 +20,8 @@
 #include <iostream>
 #include <nlohmann/json_fwd.hpp>
 #include <rtc/datachannel.hpp>
+#include <string>
+#include <unistd.h>
 
 MusicSession::MusicSession(nlohmann::json connectionInfo)
 //MusicSession::MusicSession()
@@ -370,18 +372,35 @@ std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rt
     return pc;
 };
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int MusicSession::getPlaylistSum()
 {
-    int i,j;
+    std::cout << "!!!!!!!!!!!!!!!!!!\n";
+    
     int sum=0;
-    for (i = 0; i < playList.size(); i++)
+    std::stringstream strstrm;
+    strstrm << "";
+    auto plist = getPlaylist();
+    // for (i = 0; i < playList.size(); i++)
+    // {
+    //     for (j = 0; j < playList[i].dump().size(); j++)
+    //     {
+    //         sum += playList[i].dump().c_str()[j];
+    //     }
+    // }
+    for (auto song : plist)
     {
-        for (j = 0; j < playList[i].dump().size(); j++)
-        {
-            sum += playList[i].dump().c_str()[j];
-        }
+        strstrm << song;
     }
+    std::cout << "!" << strstrm.str() << "!\n";
+    for (char i :strstrm.str())
+    {
+        sum += i;
+    }
+    std::cout << "!!!!!!!!!!!!!!!!!!\n";
     return sum;
 }
 
@@ -396,45 +415,85 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::wea
 
 int MusicSession::interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc)
 {
+    sleep(1);
     std::cout << "interperating\n";
     nlohmann::json message = nlohmann::json::parse(inp);
     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " received from " << id << " : " << message << "\n";
     std::vector<nlohmann::json> plv;
     plv.clear();
     
+    std::cout << "------------------------inside------------------------\n";
     
+    nlohmann::json toSet = nlohmann::json::parse(message.dump());
+    std::cout <<toSet << "\n";
+    if(getIfFieldIsInteger(toSet, "playlistChkSum"))
+        toSet.emplace("playlistChkSum", getPlaylistSum());
+    if(getIfFieldIsInteger(toSet, "numberOfSongs"))
+        toSet.emplace("numberOfSongs", getPlaylist().size());
+    std::cout << "updated from song inside--1-1-1-1-1-1-1" << toSet <<"\n";
+    setInfoUpdate(toSet);
     
-    int psum = getPlaylistSum();
-    int playlistLength = getPlaylist().size();
-    if(getIfFieldIsInteger(message, "numberOfSongs"))
+    nlohmann::json tmpSession = nlohmann::json::parse(getSessionInfo().dump());
+    std::cout << tmpSession << " | " <<message<< std::endl;
+    std::vector<nlohmann::json> psnapshot(getPlaylist());
+    for ( nlohmann::json song : psnapshot)
     {
-        std::cout << "nos: " << message.find("numberOfSongs").value().get<int>() <<"\n";
-        if(message.find("numberOfSongs").value().get<int>() < playlistLength)
+        std::cout << song.dump() << "\n";
+    }
+    std::cout << std::endl;
+    
+    
+    
+    int psum = tmpSession.find("playlistChkSum").value().get<int>();
+    int playlistLength = tmpSession.find("numberOfSongs").value().get<int>();
+    std::cout << "Playlist sum: " << psum << "\nPlaylist length: " <<playlistLength << "\n";
+    std::cout << "------------------------outside------------------------\n";
+    
+    if(getIfFieldIsInteger(message, "priority"))
+    {
+        std::unordered_map<std::string, bool> temp;
+        temp.emplace(message.find("priority").value().get<std::string>(),true);
+        auto it = temp.find(localId);
+        if(it != temp.end())
         {
-            playList.clear();
+            dc->send(getSessionInfo().dump());
+            return 0;
+        }
+        if(getIfFieldIsInteger(message, "numberOfSongs"))
+        {
+            std::cout << "nos: " << message.find("numberOfSongs").value().get<int>() <<"\n";
+            if(message.find("numberOfSongs").value().get<int>() != playlistLength)
+            {
+                inPlaylistWriteMode = true;
+                if(message.find("numberOfSongs").value().get<int>() < playlistLength-1)
+                {
+                    playList.clear();
+                }
+            }
+            
+        }
+        if(safeCheckIntEq(message, "playlistChkSum", psum)==2 || safeCheckIntEq(message, "ok", psum)==2)
+        {
+            std::cout << "\n\n\nOut of playlist write mode\n\n\n\n";
+            //sleep(3);
+            inPlaylistWriteMode = false;
+        }
+        else {
+            
+            if(!inPlaylistWriteMode)
+            {
+                nlohmann::json tmp =
+                {
+                    {"badSum", psum}
+                };
+                std::string tstr = tmp.dump();
+                //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tstr << "\n";
+                dc->send(tstr);
+            }
             inPlaylistWriteMode = true;
         }
     }
-    if(safeCheckIntEq(message, "playlistChkSum", psum)==2 || safeCheckIntEq(message, "ok", psum)==2)
-    {
-        inPlaylistWriteMode = false;
-    }
-    else {
-        
-        if(!inPlaylistWriteMode)
-        {
-            nlohmann::json tmp =
-            {
-                {"badSum", psum}
-            };
-            std::string tstr = tmp.dump();
-            //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << id << " : " << tstr << "\n";
-            dc->send(tstr);
-        }
-        inPlaylistWriteMode = true;
-    }
-    playlistLength = getPlaylist().size();
-    std::cout << "Playlist sum: " << psum << "\nPlaylist length: " <<playlistLength << "\n";
+    
     // if (message.find("playlistChkSum").value().is_number_integer() 
     //     || message.find("ok").value().is_number_integer() 
     //     || message.find("numberOfSongs").value().is_number_integer())
@@ -533,9 +592,20 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         }
     }
     
+    if(getIfFieldIsString(message, "priority"))
+    {
+        std::unordered_map<std::string, bool> test;
+        test.emplace(localId,true);
+        if(test.find(message.find("priority").value().get<std::string>()) == test.end())
+        {
+            dc->send(getSessionInfo().dump());
+        }
+        test.clear();
+    }
+    
     if(!inPlaylistWriteMode)
     {
-        return setInfoUpdate(message);
+        return setInfoUpdate(message, true);
     }
     else {
         return addSong(message, getPlaylist().size(), true);
@@ -544,18 +614,21 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     return 0;
 }
 
-int MusicSession::addSong(nlohmann::json track)
+int MusicSession::addSong(nlohmann::json trck)
 {
+    nlohmann::json track = nlohmann::json::parse(trck.dump());
     return addSong(track, getPlaylist().size(), false);
 }
 
-int MusicSession::addSong(nlohmann::json track, int pos)
+int MusicSession::addSong(nlohmann::json trck, int pos)
 {
+    nlohmann::json track = nlohmann::json::parse(trck.dump());
     return addSong(track, pos, false);
 }
 
-int MusicSession::addSong(nlohmann::json track, int pos, bool force)
+int MusicSession::addSong(nlohmann::json trck, int pos, bool force)
 {
+    nlohmann::json track = nlohmann::json::parse(trck.dump());
     std::string tck = "";
     std::string uri = "";
     std::string hash = "";
@@ -594,17 +667,35 @@ int MusicSession::addSong(nlohmann::json track, int pos, bool force)
     std::cout << "\n\nAdded " << templateTrack << "\n";
     playList.insert(playList.begin() + pos, templateTrack);
     lockPlayList--;
-    nlohmann::json toSet = getSessionInfo();
-    toSet["playlistChkSum"] = getPlaylistSum();
-    toSet["numberOfSongs"] = getPlaylist().size();
+    nlohmann::json toSet = nlohmann::json::parse( getSessionInfo().dump());
+    std::cout <<toSet << "\n";
+    int plcs = sessionInfo.find("playlistChkSum").value().get<int>();
+    std::string prm = sessionInfo.find("priority").value().get<std::string>();
+    toSet.emplace("playlistChkSum", getPlaylistSum());
+    toSet.emplace("numberOfSongs", getPlaylist().size());
+    std::cout << "updated from song addition--0-0-0-0-0-0-0" << toSet <<"\n";
     setInfoUpdate(toSet);
     return 0;
 }
 
-int MusicSession::setInfoUpdate(nlohmann::json info)
+int MusicSession::setInfoUpdate(nlohmann::json inp)
 {
+    nlohmann::json info = nlohmann::json::parse(inp.dump());
+    return setInfoUpdate(info, false);
+}
+
+int MusicSession::setInfoUpdate(nlohmann::json inp, bool considerPriority)
+{
+    nlohmann::json info = nlohmann::json::parse(inp.dump());
     int returnval = 1;
     bool isDiff = false;
+    bool ignoreUpdate = false;
+    MusicSession::playState ps=MusicSession::playState::PAUSED;
+    int ts = 0;
+    int plp = 0;
+    int nos = 0;
+    int plcs = 0;
+    std::string prm = "none";
     // sessionInfo = 
     // {
     //     {"playState", MusicSession::playState::PAUSED},
@@ -614,12 +705,18 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
     //     {"playlistChkSum", 0}
     // };
     std::cout << "setting info update\n";
-    MusicSession::playState ps = sessionInfo.find("playState").value().get<MusicSession::playState>();
-    int ts = sessionInfo.find("timeStamp").value().get<int>();
-    int plp = sessionInfo.find("playlistPos").value().get<int>();
-    int nos = sessionInfo.find("numberOfSongs").value().get<int>();
-    int plcs = sessionInfo.find("playlistChkSum").value().get<int>();
-    std::string prm = sessionInfo.find("priority").value().get<std::string>();
+    if(lockSession!=0)
+    {
+        lockSession++;
+        ps = sessionInfo.find("playState").value().get<MusicSession::playState>();
+        ts = sessionInfo.find("timeStamp").value().get<int>();
+        plp = sessionInfo.find("playlistPos").value().get<int>();
+        nos = sessionInfo.find("numberOfSongs").value().get<int>();
+        plcs = sessionInfo.find("playlistChkSum").value().get<int>();
+        prm = sessionInfo.find("priority").value().get<std::string>();
+        lockSession--;
+    }
+    
     if (!info.empty())
     {
         MusicSession::playState tmpst;
@@ -677,11 +774,16 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
         if(getIfFieldIsString(info, "priority"))
         {
             std::string tmp = info.find("priority").value().get<std::string>();
-            priorityMessage = tmp;
+            prm = tmp;
+            if(tmp.find(localId) && considerPriority)
+            {
+                ignoreUpdate = true;
+                returnval = 0;
+            }
         }
         std::cout << "session lock : " << lockSession << "\n";
         std::cout << "playlist lock : " << lockPlayList << "\n";
-        if(lockSession==0)
+        if(lockSession==0 && !ignoreUpdate)
         {
             lockSession++;
             sessionInfo = 
@@ -691,8 +793,10 @@ int MusicSession::setInfoUpdate(nlohmann::json info)
                 {"playlistPos", plp},
                 {"numberOfSongs", nos},
                 {"playlistChkSum", plcs},
-                {"priority", priorityMessage}
+                {"priority", prm}
             };
+            std::cout<<"received Session Info: " << info << "\n";
+            std::cout<<"new Session Info: " << sessionInfo << "\n";
             lockSession--;
             returnval = 0;
         }
@@ -773,13 +877,14 @@ int MusicSession::setInfo(nlohmann::json info)
 nlohmann::json MusicSession::getSessionInfo()
 {
     nlohmann::json returnVal;
+    
     if(lockSession == 0)
     {
         lockSession++;
-        sessionInfoBuffer = nlohmann::json(sessionInfo);
+        sessionInfoBuffer = nlohmann::json::parse(sessionInfo.dump());
         lockSession--;
     }
-    returnVal = nlohmann::json(sessionInfoBuffer);
+    returnVal = nlohmann::json::parse(sessionInfoBuffer.dump());
     return returnVal;
 }
 
@@ -852,9 +957,9 @@ bool MusicSession::getIfFieldIsString(nlohmann::json message, std::string field)
     return true;
 }
 
-int MusicSession::safeCheckIntEq(nlohmann::json message,std::string field, int inp)
+int MusicSession::safeCheckIntEq(nlohmann::json message, std::string field, int inp)
 {
-    nlohmann::json msg = nlohmann::json(message);
+    nlohmann::json msg = nlohmann::json::parse(message.dump());
     //std::cout << "input: " << msg << " | " << field << " | " << inp <<"\n";
     if(!getIfFieldIsInteger(msg, field))
     {
@@ -863,10 +968,10 @@ int MusicSession::safeCheckIntEq(nlohmann::json message,std::string field, int i
     }
     if(msg.find(field).value().get<int>() != inp)
     {
-        //std::cout << "input: " << msg << " | " << field << " | " << inp <<" | returned 1\n";
+        std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 1\n";
         return 1;
     }
-    //std::cout << "input: " << msg << " | " << field << " | " << inp <<" | returned 2\n";
+    std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 2\n";
     return 2;
 }
 
@@ -897,11 +1002,15 @@ int MusicSession::askSync()
     nlohmann::json msg = getSessionInfo();
     if (getIfFieldIsString(msg, "priority"))
     {
-        std::shared_ptr<rtc::DataChannel> dc = dataChannelMap[msg["priority"]];
-        if(dc->isOpen())
+        auto it = dataChannelMap.find(localId);
+        if(it != dataChannelMap.end())
         {
-            dc->send(msg.dump());
-            return 0;
+            std::shared_ptr<rtc::DataChannel> dc = it->second;
+            if(dc->isOpen())
+            {
+                dc->send(msg.dump());
+                return 0;
+            }
         }
         return 2;
     }

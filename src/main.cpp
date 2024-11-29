@@ -102,6 +102,7 @@ int main(int argc, char *argv[])
             std::cout << song.dump() << "\n";
         }
         std::cout << std::endl;
+        //mu->askSync();
     }
     //std::cin >> inp;
     mu->endSession();

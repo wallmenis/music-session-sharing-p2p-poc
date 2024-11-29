@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <nlohmann/json.hpp>
+#include <atomic>
 
 #define KEYLEN 5
 
@@ -25,8 +26,9 @@ class MusicSession{
         bool wsConnected;
         bool dcConnected;
         bool pcConnected;
-        int lockPlayList;
-        int lockSession;
+        std::atomic<int> lockPlayList;
+        std::atomic<int> lockSession;
+        std::atomic<bool> inPlaylistWriteMode;
     public:
         MusicSession(nlohmann::json connectionInfo);
         //MusicSession();
@@ -66,10 +68,11 @@ class MusicSession{
         
         
         
-        bool inPlaylistWriteMode;
-        std::string priorityMessage;
+        
+        //std::string priorityMessage;
         
         int setInfoUpdate(nlohmann::json info);
+        int setInfoUpdate(nlohmann::json info, bool setPriority);
         int interperateIncomming(std::string inp, std::string id, std::shared_ptr<rtc::DataChannel> dc);
         int interperateIncomming(std::string inp, std::string id, std::weak_ptr<rtc::DataChannel> wdc);
         int greetPeer(std::shared_ptr<rtc::DataChannel> dc);
