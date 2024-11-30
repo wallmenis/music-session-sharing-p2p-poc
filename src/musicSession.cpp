@@ -380,7 +380,7 @@ std::shared_ptr<rtc::PeerConnection> MusicSession::createPeerConnection(const rt
 
 int MusicSession::getPlaylistSum()
 {
-    std::cout << "!!!!!!!!!!!!!!!!!!\n";
+    //std::cout << "!!!!!!!!!!!!!!!!!!\n";
     
     int sum=0;
     std::stringstream strstrm;
@@ -397,12 +397,12 @@ int MusicSession::getPlaylistSum()
     {
         strstrm << song;
     }
-    std::cout << "!" << strstrm.str() << "!\n";
+    //std::cout << "!" << strstrm.str() << "!\n";
     for (char i :strstrm.str())
     {
         sum += i;
     }
-    std::cout << "!!!!!!!!!!!!!!!!!!\n";
+    //std::cout << "!!!!!!!!!!!!!!!!!!\n";
     return sum;
 }
 
@@ -458,19 +458,17 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     //is self check:
     if(getIfFieldIsString(message, "priority"))
     {
-        std::unordered_map<std::string, bool> test;
-        test.emplace(localId,true);
-        test.emplace("none", true);
-        if(test.find(message.find("priority").value().get<std::string>()) == test.end())
+        // std::unordered_map<std::string, bool> test;
+        // test.emplace(localId,true);
+        // if(test.find(message.find("priority").value().get<std::string>()) != test.end())
+        if(message.find("priority").value().get<std::string>().find(localId)!=std::string::npos)
         {
             
             if(sessionIntegrityCheck(message) > 0)
                 dc->send(getSessionInfo().dump());
-            test.clear();
             std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " self check PASSED!!!" << "\n";
             return 0;
         }
-        test.clear();
     }
     // is self check failed... running below:
     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " self check failed, it is not me :')" << "\n";
@@ -483,7 +481,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
             psum = getPlaylistSum();
             playlistLength = getPlaylist().size();
             nlohmann::json tmp;
-            tmp = nlohmann::json::parse(getSessionInfo().dump());
+            tmp = nlohmann::json::parse(message.dump());
             nlohmann::json toSend={{"sendPlaylist", psum}};
             if(tmp["numberOfSongs"].get<int>() != playlistLength|| tmp["playlistChkSum"].get<int>()!=psum)
             {
@@ -505,7 +503,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     
     if(getIfFieldIsInteger(message, "sendPlaylist"))
     {
-        dc->send(getSessionInfo().dump());
+        //dc->send(getSessionInfo().dump());
         auto plist = getPlaylist();
         psum = getPlaylistSum();
         for (auto song : plist)
@@ -522,6 +520,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     
     if(checkIfIsSongPacket(message) && inPlaylistWriteMode)
     {
+        std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " will add song!" << "\n";
         addSong(message, getPlaylist().size(), true, false);
         return 0;
     }
@@ -538,6 +537,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
         nlohmann::json toSend={{"sendPlaylist", psum}};
         if(tmp["numberOfSongs"].get<int>() != playlistLength|| tmp["playlistChkSum"].get<int>()!=psum)
         {
+            std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " playlist validation failed, retrying (" << psum << ")\n";
             dc->send(toSend.dump());
             inPlaylistWriteMode = true;
             if(lockPlayList==0)
@@ -548,10 +548,14 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
             }
         }
         else {
+            std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " playlist validation succeded!" << "\n";
             inPlaylistWriteMode = false;
         }
+        sleep(1);
         return 0;
     }
+    // is not getting ok!
+    std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " is not getting ok!" << "\n";
     
     return 1;
 }
@@ -563,15 +567,15 @@ bool MusicSession::checkIfIsSongPacket(nlohmann::json inp)
     {
         return false;
     }
-    if(!getIfFieldIsInteger(info, "hash"))
+    if(!getIfFieldIsString(info, "hash"))
     {
         return false;
     }
-    if(!getIfFieldIsInteger(info, "track"))
+    if(!getIfFieldIsString(info, "track"))
     {
         return false;
     }
-    if(!getIfFieldIsInteger(info, "uri"))
+    if(!getIfFieldIsString(info, "uri"))
     {
         return false;
     }
@@ -651,12 +655,12 @@ int MusicSession::addSong(nlohmann::json trck, int pos, bool force, bool updateS
     };
     if(inPlaylistWriteMode && !force)
     {
-        std::cout << "IN PLAYLIST WRITE MODE" << "\n";
+        std::cout << "===========================IN PLAYLIST WRITE MODE" << "===========================\n";
         return 1;
     }
     if(lockPlayList!=0)
     {
-        std::cout << "NOT ADDED SONG" << "\n";
+        std::cout << "===========================NOT ADDED SONG" << "===========================\n";
         return 2;
     }
     lockPlayList++;
