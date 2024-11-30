@@ -34,7 +34,7 @@ class MusicSession{
         //MusicSession();
         int addSong(nlohmann::json track);
         int addSong(nlohmann::json track, int pos);
-        int addSong(nlohmann::json track, int pos, bool force);
+        int addSong(nlohmann::json track, int pos, bool force, bool updateSession);
         void removeSong(int playlistPoint);
         std::string getCode();
         int makeConnection(std::string code);
@@ -84,6 +84,9 @@ class MusicSession{
         bool getIfFieldIsString(nlohmann::json message, std::string field);
         
         int safeCheckIntEq(nlohmann::json message,std::string field, int inp);
+        int sessionIntegrityCheck(nlohmann::json inp);
+        bool checkIfIsSessionPacket(nlohmann::json inp);
+        bool checkIfIsSongPacket(nlohmann::json inp);
         
     public:
         int getPlaylistSum();

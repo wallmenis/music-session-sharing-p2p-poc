@@ -93,15 +93,15 @@ int main(int argc, char *argv[])
         //     mu->setInfo(sessionInfo);
         // }
         sleep(1);
-        std::cout << "Time: " << std::chrono::system_clock::now().time_since_epoch().count() << " in id: " << mu->getCode() << "\n";
-        std::cout << mu->getNumberOfPeers() << std::endl;
-        std::cout << mu->getSessionInfo().dump() << std::endl;
-        std::vector<nlohmann::json> psnapshot(mu->getPlaylist());
-        for ( nlohmann::json song : psnapshot)
-        {
-            std::cout << song.dump() << "\n";
-        }
-        std::cout << std::endl;
+        // std::cout << "Time: " << std::chrono::system_clock::now().time_since_epoch().count() << " in id: " << mu->getCode() << "\n";
+        // std::cout << mu->getNumberOfPeers() << std::endl;
+        // std::cout << mu->getSessionInfo().dump() << std::endl;
+        // std::vector<nlohmann::json> psnapshot(mu->getPlaylist());
+        // for ( nlohmann::json song : psnapshot)
+        // {
+        //     std::cout << song.dump() << "\n";
+        // }
+        // std::cout << std::endl;
         //mu->askSync();
     }
     //std::cin >> inp;
