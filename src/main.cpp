@@ -8,6 +8,7 @@ int main(int argc, char *argv[])
 {
     std::string otherPear;
     std::stringstream inpStrm;
+    
     if(argc > 1)
     {
         for (int i = 0; i < KEYLEN; i++)
@@ -15,6 +16,10 @@ int main(int argc, char *argv[])
             inpStrm << argv[1][i];
         }
         otherPear = inpStrm.str();
+    }
+    if(argc > 2)
+    {
+        
     }
     nlohmann::json configs ={{
         "signaling_server", "127.0.0.1:8000"},
@@ -52,7 +57,7 @@ int main(int argc, char *argv[])
     std::cout << mu->getCode()  << "\n"; //<< "Please enter peer code: ";
     // std::cin >> inp;
     // std::cin.ignore();
-    if(!otherPear.empty())
+    if(!otherPear.empty() && argc > 2)
     {
         mu->makeConnection(otherPear);
         nlohmann::json track;
@@ -76,6 +81,8 @@ int main(int argc, char *argv[])
         };
         mu->waitUntilCanBeHeard();
         mu->setInfo(sessionInfo);
+        //mu->askSync();
+        mu->assertState();
     }
     while(true)
     {
@@ -93,16 +100,22 @@ int main(int argc, char *argv[])
         //     mu->setInfo(sessionInfo);
         // }
         sleep(1);
-        // std::cout << "Time: " << std::chrono::system_clock::now().time_since_epoch().count() << " in id: " << mu->getCode() << "\n";
-        // std::cout << mu->getNumberOfPeers() << std::endl;
-        // std::cout << mu->getSessionInfo().dump() << std::endl;
-        // std::vector<nlohmann::json> psnapshot(mu->getPlaylist());
-        // for ( nlohmann::json song : psnapshot)
-        // {
-        //     std::cout << song.dump() << "\n";
-        // }
-        // std::cout << std::endl;
-        //mu->askSync();
+        std::cout << "Time: " << std::chrono::system_clock::now().time_since_epoch().count() << " in id: " << mu->getCode() << "\n";
+        std::cout << mu->getNumberOfPeers() << std::endl;
+        std::cout << mu->getSessionInfo().dump() << std::endl;
+        std::vector<nlohmann::json> psnapshot(mu->getPlaylist());
+        for ( nlohmann::json song : psnapshot)
+        {
+            std::cout << song.dump() << "\n";
+        }
+        std::cout << " arg count: " << argc << std::endl;
+        if(otherPear.empty() || argc < 3)
+        {
+            
+            std::cout << "----------------------------------------ASKING TO SYNC!!!!----------------------------------------\n";
+            mu->askSync();
+        }
+        
     }
     //std::cin >> inp;
     mu->endSession();

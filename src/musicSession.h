@@ -94,7 +94,9 @@ class MusicSession{
         bool getIfCanBeHeard();
         void waitUntilCanBeHeard();
         int getNumberOfPeers();
+        int sendSync();
         int askSync();
+        int assertState();
 };
 
 #endif

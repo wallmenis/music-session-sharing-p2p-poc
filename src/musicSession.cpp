@@ -439,7 +439,7 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     // setInfoUpdate(toSet);
     
     nlohmann::json tmpSession = nlohmann::json::parse(getSessionInfo().dump());
-    std::cout << tmpSession << " | " <<message<< std::endl;
+    std::cout << "\n" << tmpSession << " | " <<message << "\n" << std::endl;
     std::vector<nlohmann::json> psnapshot(getPlaylist());
     for ( nlohmann::json song : psnapshot)
     {
@@ -458,12 +458,8 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     //is self check:
     if(getIfFieldIsString(message, "priority"))
     {
-        // std::unordered_map<std::string, bool> test;
-        // test.emplace(localId,true);
-        // if(test.find(message.find("priority").value().get<std::string>()) != test.end())
         if(message.find("priority").value().get<std::string>().find(localId)!=std::string::npos)
         {
-            
             if(sessionIntegrityCheck(message) > 0)
                 dc->send(getSessionInfo().dump());
             std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " self check PASSED!!!" << "\n";
@@ -556,6 +552,16 @@ int MusicSession::interperateIncomming(std::string inp, std::string id, std::sha
     }
     // is not getting ok!
     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " is not getting ok!" << "\n";
+    
+    if(getIfFieldIsString(message, "askSync"))
+    {
+        std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " " << id << " is asking to sync" << "\n";
+        dc->send(getSessionInfo().dump());
+        return 0;
+    }
+    
+    // is not asking for sync!
+    std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " is not asking for sync!" << "\n";
     
     return 1;
 }
@@ -655,16 +661,16 @@ int MusicSession::addSong(nlohmann::json trck, int pos, bool force, bool updateS
     };
     if(inPlaylistWriteMode && !force)
     {
-        std::cout << "===========================IN PLAYLIST WRITE MODE" << "===========================\n";
+        //std::cout << "===========================IN PLAYLIST WRITE MODE" << "===========================\n";
         return 1;
     }
     if(lockPlayList!=0)
     {
-        std::cout << "===========================NOT ADDED SONG" << "===========================\n";
+        //std::cout << "===========================NOT ADDED SONG" << "===========================\n";
         return 2;
     }
     lockPlayList++;
-    std::cout << "\n\n===========================Added " << templateTrack << "===========================\n";
+    //std::cout << "\n\n===========================Added " << templateTrack << "===========================\n";
     playList.insert(playList.begin() + pos, templateTrack);
     lockPlayList--;
     if(updateSession)
@@ -675,7 +681,7 @@ int MusicSession::addSong(nlohmann::json trck, int pos, bool force, bool updateS
         std::string prm = sessionInfo.find("priority").value().get<std::string>();
         toSet.emplace("playlistChkSum", getPlaylistSum());
         toSet.emplace("numberOfSongs", getPlaylist().size());
-        std::cout << "updated from song addition--0-0-0-0-0-0-0" << toSet <<"\n";
+        //std::cout << "updated from song addition--0-0-0-0-0-0-0" << toSet <<"\n";
         setInfoUpdate(toSet);
     }
     
@@ -946,14 +952,14 @@ int MusicSession::setInfo(nlohmann::json info)
     {
         return 3;
     }
-    for (auto conne : dataChannelMap)
-    {
-        if(conne.second->isOpen())
-        {
-            //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << conne.first << " : " << askForUser.dump() << "\n";
-            conne.second->send(askForUser.dump());
-        }
-    }
+    // for (auto conne : dataChannelMap)
+    // {
+    //     if(conne.second->isOpen())
+    //     {
+    //         //std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to " << conne.first << " : " << askForUser.dump() << "\n";
+    //         conne.second->send(askForUser.dump());
+    //     }
+    // }
     return setInfoUpdate(info);
 }
 
@@ -964,10 +970,12 @@ nlohmann::json MusicSession::getSessionInfo()
     if(lockSession == 0)
     {
         lockSession++;
-        sessionInfoBuffer = nlohmann::json::parse(sessionInfo.dump());
+        //sessionInfoBuffer = nlohmann::json::parse(sessionInfo.dump());
+        sessionInfoBuffer = nlohmann::json(sessionInfo);
         lockSession--;
     }
-    returnVal = nlohmann::json::parse(sessionInfoBuffer.dump());
+    // returnVal = nlohmann::json::parse(sessionInfoBuffer.dump());
+    returnVal = nlohmann::json(sessionInfoBuffer);
     return returnVal;
 }
 
@@ -1045,7 +1053,7 @@ bool MusicSession::getIfFieldIsString(nlohmann::json message, std::string field)
     //std::cout << "exists ";
     if(!msg.find(field).value().is_string())
     {
-        std::cout << "is not string" << std::endl;
+        //std::cout << "is not string" << std::endl;
         return false;
     }
     //std::cout << "is string\n";
@@ -1063,10 +1071,10 @@ int MusicSession::safeCheckIntEq(nlohmann::json message, std::string field, int 
     }
     if(msg.find(field).value().get<int>() != inp)
     {
-        std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 1\n";
+        //std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 1\n";
         return 1;
     }
-    std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 2\n";
+    //std::cout << "\n----------------------------input: " << msg << " | " << field << " | " << inp <<" | returned 2\n";
     return 2;
 }
 
@@ -1094,20 +1102,133 @@ void MusicSession::waitUntilCanBeHeard()
 
 int MusicSession::askSync()
 {
-    nlohmann::json msg = getSessionInfo();
-    if (getIfFieldIsString(msg, "priority"))
+    
+    nlohmann::json msg = {{"askSync", localId}};
+    auto it = dataChannelMap.find(getSessionInfo()["priority"].get<std::string>());
+    if (it != dataChannelMap.end())
     {
-        auto it = dataChannelMap.find(localId);
-        if(it != dataChannelMap.end())
+        if(it->second->isOpen())
         {
-            std::shared_ptr<rtc::DataChannel> dc = it->second;
-            if(dc->isOpen())
-            {
-                dc->send(msg.dump());
-                return 0;
-            }
+            std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to master " << it->first << " : " << msg.dump() << "\n";
+            it->second->send(msg.dump());
+            return 0;
         }
-        return 2;
+    }
+    for (auto conne : dataChannelMap)
+    {
+        if(conne.second->isOpen())
+        {
+            std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to peers " << conne.first << " : " << msg.dump() << "\n";
+            conne.second->send(msg.dump());
+        }
     }
     return 1;
+    
+    // nlohmann::json session = getSessionInfo();
+    // if (session["priority"].get<std::string>().find(localId) == std::string::npos)
+    // {
+    //     auto it = dataChannelMap.find(session["priority"].get<std::string>());
+    //     if (it != dataChannelMap.end())
+    //     {
+    //         if(it->second->isOpen())
+    //         {
+    //             std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to master " << it->first << " : " << session.dump() << "\n";
+    //             it->second->send(session.dump());
+    //             return 0;
+    //         }
+    //     }
+    //     for (auto conne : dataChannelMap)
+    //     {
+    //         if(conne.second->isOpen())
+    //         {
+    //             session["priority"] = conne.first;
+    //             std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to peers " << conne.first << " : " << session.dump() << "\n";
+    //             conne.second->send(session.dump());
+    //         }
+    //     }
+    //     return 1;
+    // }
+    return 2;
 }
+
+int MusicSession::assertState()
+{
+    nlohmann::json session = getSessionInfo();
+    session["priority"] = localId;
+    setInfo(session);
+    return sendSync();
+}
+
+int MusicSession::sendSync()
+{
+    nlohmann::json session = getSessionInfo();
+    if(session["priority"].get<std::string>().find(localId) != std::string::npos)
+    {
+        for (auto dc :dataChannelMap)
+        {
+            if(dc.second->isOpen())
+            {
+                dc.second->send(session.dump());
+            }
+        }
+        return 1;
+    }
+    return 0;
+}
+
+// int MusicSession::askSync()
+// {
+//     nlohmann::json msg = getSessionInfo();
+//     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " " << localId << " is performing synchronization\n";
+//     if (getIfFieldIsString(msg, "priority"))
+//     {
+//         if(msg["priority"].get<std::string>().find(localId) == std::string::npos)
+//         {
+//             auto it = dataChannelMap.find(msg["priority"].get<std::string>());
+//             if (it != dataChannelMap.end())
+//             {
+//                 if(it->second->isOpen())
+//                 {
+//                     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to master " << it->first << " : " << msg.dump() << "\n";
+//                     it->second->send(msg.dump());
+//                     return 0;
+//                 }
+//             }
+//             for (auto conne : dataChannelMap)
+//             {
+//                 if(conne.second->isOpen())
+//                 {
+//                     msg["priority"] = conne.first;
+//                     std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to peers " << conne.first << " : " << msg.dump() << "\n";
+//                     conne.second->send(msg.dump());
+//                 }
+//             }
+//             return 1;
+//         }
+//         for (auto conne : dataChannelMap)
+//         {
+//             if(conne.second->isOpen())
+//             {
+//                 std::cout << std::chrono::system_clock::now().time_since_epoch().count()  << " sending to slaves " << conne.first << " : " << msg.dump() << "\n";
+//                 conne.second->send(msg.dump());
+//             }
+//         }
+//         return 3;
+//     }
+//     // if (getIfFieldIsString(msg, "priority"))
+//     // {
+//     //     auto it = dataChannelMap.find(localId);
+//     //     if(it != dataChannelMap.end())
+//     //     {
+//     //         std::shared_ptr<rtc::DataChannel> dc = it->second;
+//     //         if(dc->isOpen())
+//     //         {
+//     //             dc->send(msg.dump());
+//     //             return 0;
+//     //         }
+//     //     }
+//     //     return 2;
+//     // }
+//     // return 1;
+//     return 4;
+// }
