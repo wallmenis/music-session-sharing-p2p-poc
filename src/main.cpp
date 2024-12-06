@@ -57,9 +57,12 @@ int main(int argc, char *argv[])
     std::cout << mu->getCode()  << "\n"; //<< "Please enter peer code: ";
     // std::cin >> inp;
     // std::cin.ignore();
-    if(!otherPear.empty() && argc > 2)
+    if(!otherPear.empty())
     {
         mu->makeConnection(otherPear);
+    }
+    if (!otherPear.empty() && argc > 2)
+    {
         nlohmann::json track;
         
         track = {
