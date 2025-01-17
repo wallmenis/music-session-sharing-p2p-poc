@@ -615,6 +615,10 @@ bool MusicSession::checkIfIsSessionPacket(nlohmann::json inp)
     {
         return false;
     }
+    if(!getIfFieldIsString(info, "priority"))
+    {
+        return false;
+    }
     return true;
 }
 
