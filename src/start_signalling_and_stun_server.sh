@@ -8,6 +8,6 @@ LOG_FILE_SIGNALING="SIGNALING.log"
 turnserver --no-auth --verbose 1>"$RUN_PATH/$LOG_FILE_STUN" 2>"$RUN_PATH/$LOG_FILE_STUN_ERR" &
 # sudo nmcli device down enp1s0
 trap : INT
-tmux -c $RUN_PATH/signaling-server.py
+tmux -c "python \"$RUN_PATH\"/signaling-server.py"
 kill $(pgrep turnserver)
 # sudo nmcli device up enp1s0
